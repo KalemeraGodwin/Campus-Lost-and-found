@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "Notice": {
+      "title": "Notice",
+      "description": "Publicly browsable lost or found campus item notice without sensitive contact PII or expected answers.",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["found", "lost"], "description": "Whether the item was found or lost" },
+        "status": { "type": "string", "enum": ["open", "returned", "archived", "removed"], "description": "Lifecycle status of the notice" },
+        "category": { "type": "string", "maxLength": 40, "description": "Item category" },
+        "title": { "type": "string", "minLength": 3, "maxLength": 120, "description": "Short item title" },
+        "publicDescription": { "type": "string", "minLength": 10, "maxLength": 1200, "description": "General public description" },
+        "location": { "type": "string", "minLength": 2, "maxLength": 120, "description": "Campus location" },
+        "itemDate": { "type": "string", "maxLength": 20, "pattern": "^\\d{4}-\\d{2}-\\d{2}$", "description": "ISO date string when found or lost" },
+        "photos": { "type": "array", "description": "Array of image URLs (1 to 5)" },
+        "reporterFirstName": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Reporter first name shown publicly" },
+        "verificationPrompts": { "type": "array", "description": "Public list of verification question prompts without expected answers" },
+        "reporterPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of Ugandan WhatsApp number for 24h rate limiting" },
+        "approvedClaimId": { "type": "string", "maxLength": 128, "description": "Currently approved claim document ID or null" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" },
+        "closedAt": { "type": "string", "format": "date-time", "description": "Timestamp when marked returned or closed" }
+      },
+      "required": ["type", "status", "category", "title", "publicDescription", "location", "itemDate", "photos", "reporterFirstName", "verificationPrompts", "reporterPhoneHash", "createdAt", "updatedAt"]
+    },
+    "NoticeSecret": {
+      "title": "NoticeSecret",
+      "description": "Private reporter details and expected answers keyed by SHA-256 hash of the secret management token.",
+      "type": "object",
+      "properties": {
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Associated notice ID" },
+        "reporterName": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Full reporter name" },
+        "reporterWhatsApp": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Ugandan WhatsApp number" },
+        "verificationQuestions": { "type": "array", "description": "Array of question and expectedAnswer objects" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["noticeId", "reporterName", "reporterWhatsApp", "verificationQuestions", "createdAt"]
+    },
+    "Claim": {
+      "title": "Claim",
+      "description": "Ownership or recovery claim submitted against a notice.",
+      "type": "object",
+      "properties": {
+        "claimCodeHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of the human-readable claim code" },
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Target notice ID" },
+        "claimantName": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Claimant display name" },
+        "claimantPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of claimant WhatsApp for 24h rate limiting" },
+        "answers": { "type": "array", "description": "Answers to verification questions" },
+        "evidenceUrls": { "type": "array", "description": "Uploaded evidence URLs (1 to 5)" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Claim review status" },
+        "rejectionReason": { "type": "string", "maxLength": 500, "description": "Optional reason when rejected" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Submission timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["claimCodeHash", "noticeId", "claimantName", "claimantPhoneHash", "answers", "evidenceUrls", "status", "createdAt", "updatedAt"]
+    },
+    "ClaimContact": {
+      "title": "ClaimContact",
+      "description": "Isolated claimant WhatsApp contact visible only to Admin.",
+      "type": "object",
+      "properties": {
+        "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Claim document ID" },
+        "claimantWhatsApp": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Ugandan WhatsApp number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["claimId", "claimantWhatsApp", "createdAt"]
+    },
+    "ClaimCodeLookup": {
+      "title": "ClaimCodeLookup",
+      "description": "Lookup document keyed by SHA-256 of claimCode pointing to claimId.",
+      "type": "object",
+      "properties": {
+        "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Target claim ID" },
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Target notice ID" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["claimId", "noticeId", "createdAt"]
+    },
+    "ClaimHandover": {
+      "title": "ClaimHandover",
+      "description": "Revealed reporter WhatsApp contact written upon claim approval, keyed by SHA-256 of claimCode.",
+      "type": "object",
+      "properties": {
+        "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Approved claim ID" },
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Notice ID" },
+        "reporterName": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Reporter name" },
+        "reporterWhatsApp": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Reporter WhatsApp revealed to approved claimant" },
+        "approvedAt": { "type": "string", "format": "date-time", "description": "Approval timestamp" }
+      },
+      "required": ["claimId", "noticeId", "reporterName", "reporterWhatsApp", "approvedAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Abuse or spam report submitted against a notice or claim.",
+      "type": "object",
+      "properties": {
+        "targetType": { "type": "string", "enum": ["notice", "claim"], "description": "Reported entity type" },
+        "targetId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Target document ID" },
+        "reason": { "type": "string", "minLength": 5, "maxLength": 600, "description": "Reason for reporting" },
+        "status": { "type": "string", "enum": ["open", "resolved"], "description": "Moderation status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Report timestamp" }
+      },
+      "required": ["targetType", "targetId", "reason", "status", "createdAt"]
+    },
+    "BannedNumber": {
+      "title": "BannedNumber",
+      "description": "Banned Ugandan WhatsApp number document keyed by phone number.",
+      "type": "object",
+      "properties": {
+        "phoneNumber": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Banned WhatsApp number" },
+        "reason": { "type": "string", "minLength": 3, "maxLength": 400, "description": "Ban reason" },
+        "bannedAt": { "type": "string", "format": "date-time", "description": "Ban timestamp" }
+      },
+      "required": ["phoneNumber", "reason", "bannedAt"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Authorized campus administrator record.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 160, "description": "Admin email" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" }
+      },
+      "required": ["email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/Notice" },
+      "description": "Public campus lost & found notices without PII or expected answers"
+    },
+    "/noticeSecrets/{tokenHash}": {
+      "schema": { "$ref": "#/entities/NoticeSecret" },
+      "description": "Private reporter contact and verification expected answers keyed by managementToken SHA-256 hash"
+    },
+    "/claims/{claimId}": {
+      "schema": { "$ref": "#/entities/Claim" },
+      "description": "Claims submitted against notices"
+    },
+    "/claimContacts/{claimId}": {
+      "schema": { "$ref": "#/entities/ClaimContact" },
+      "description": "Claimant WhatsApp PII isolated for admin moderation"
+    },
+    "/claimCodeLookups/{claimCodeHash}": {
+      "schema": { "$ref": "#/entities/ClaimCodeLookup" },
+      "description": "Maps SHA-256 of claimCode to claimId"
+    },
+    "/claimHandovers/{claimCodeHash}": {
+      "schema": { "$ref": "#/entities/ClaimHandover" },
+      "description": "Revealed reporter WhatsApp for an approved claim"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Abuse and spam moderation queue"
+    },
+    "/bannedNumbers/{phoneNumber}": {
+      "schema": { "$ref": "#/entities/BannedNumber" },
+      "description": "Banned WhatsApp numbers"
+    },
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin authorization registry"
+    }
+  }
+}

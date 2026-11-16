@@ -1,0 +1,321 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default-Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Reusable Hardened Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSha256(hash) {
+      return hash is string && hash.size() == 64 && hash.matches('^[a-f0-9]{64}$');
+    }
+
+    function isValidPhone(phone) {
+      return phone is string && phone.size() == 13 && phone.matches('^\\+256\\d{9}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email == 'kalemeragodie@gmail.com' && request.auth.token.email_verified == true)
+      );
+    }
+
+    // --- Validation Blueprints ---
+    function isValidNotice(data) {
+      return data.keys().hasAll([
+        'type', 'status', 'category', 'title', 'publicDescription',
+        'location', 'itemDate', 'photos', 'reporterFirstName',
+        'verificationPrompts', 'reporterPhoneHash', 'approvedClaimId',
+        'createdAt', 'updatedAt', 'closedAt'
+      ])
+      && data.keys().hasOnly([
+        'type', 'status', 'category', 'title', 'publicDescription',
+        'location', 'itemDate', 'photos', 'reporterFirstName',
+        'verificationPrompts', 'reporterPhoneHash', 'approvedClaimId',
+        'createdAt', 'updatedAt', 'closedAt'
+      ])
+      && data.type in ['found', 'lost']
+      && data.status in ['open', 'returned', 'archived', 'removed']
+      && data.category is string && data.category.size() >= 2 && data.category.size() <= 40
+      && data.title is string && data.title.size() >= 3 && data.title.size() <= 120
+      && data.publicDescription is string && data.publicDescription.size() >= 10 && data.publicDescription.size() <= 1200
+      && data.location is string && data.location.size() >= 2 && data.location.size() <= 120
+      && data.itemDate is string && data.itemDate.size() >= 8 && data.itemDate.size() <= 20 && data.itemDate.matches('^\\d{4}-\\d{2}-\\d{2}$')
+      && data.photos is list && data.photos.size() >= 1 && data.photos.size() <= 5
+      && data.photos[0] is string && data.photos[0].size() >= 5 && data.photos[0].size() <= 350000
+      && data.reporterFirstName is string && data.reporterFirstName.size() >= 1 && data.reporterFirstName.size() <= 60
+      && data.verificationPrompts is list && data.verificationPrompts.size() >= 1 && data.verificationPrompts.size() <= 5
+      && data.verificationPrompts[0] is string && data.verificationPrompts[0].size() >= 3 && data.verificationPrompts[0].size() <= 240
+      && isValidSha256(data.reporterPhoneHash)
+      && (data.approvedClaimId == null || isValidId(data.approvedClaimId))
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp
+      && (data.closedAt == null || data.closedAt is timestamp);
+    }
+
+    function isValidNoticeSecret(data) {
+      return data.keys().hasAll(['noticeId', 'reporterName', 'reporterWhatsApp', 'verificationQuestions', 'createdAt'])
+        && data.keys().hasOnly(['noticeId', 'reporterName', 'reporterWhatsApp', 'verificationQuestions', 'createdAt'])
+        && isValidId(data.noticeId)
+        && data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 80
+        && isValidPhone(data.reporterWhatsApp)
+        && data.verificationQuestions is list && data.verificationQuestions.size() >= 1 && data.verificationQuestions.size() <= 5
+        && data.verificationQuestions[0] is map
+        && data.verificationQuestions[0].keys().hasAll(['question', 'expectedAnswer'])
+        && data.verificationQuestions[0].keys().hasOnly(['question', 'expectedAnswer'])
+        && data.verificationQuestions[0].question is string && data.verificationQuestions[0].question.size() >= 3 && data.verificationQuestions[0].question.size() <= 240
+        && data.verificationQuestions[0].expectedAnswer is string && data.verificationQuestions[0].expectedAnswer.size() >= 1 && data.verificationQuestions[0].expectedAnswer.size() <= 240
+        && data.createdAt is timestamp;
+    }
+
+    function isValidClaim(data, allowEmptyEvidence) {
+      return data.keys().hasAll([
+        'claimCodeHash', 'noticeId', 'claimantName', 'claimantPhoneHash',
+        'answers', 'evidenceUrls', 'status', 'rejectionReason', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'claimCodeHash', 'noticeId', 'claimantName', 'claimantPhoneHash',
+        'answers', 'evidenceUrls', 'status', 'rejectionReason', 'createdAt', 'updatedAt'
+      ])
+      && isValidSha256(data.claimCodeHash)
+      && isValidId(data.noticeId)
+      && data.claimantName is string && data.claimantName.size() >= 1 && data.claimantName.size() <= 80
+      && isValidSha256(data.claimantPhoneHash)
+      && data.answers is list && data.answers.size() >= 1 && data.answers.size() <= 5
+      && data.answers[0] is map
+      && data.answers[0].keys().hasAll(['question', 'answer'])
+      && data.answers[0].keys().hasOnly(['question', 'answer'])
+      && data.answers[0].question is string && data.answers[0].question.size() >= 3 && data.answers[0].question.size() <= 240
+      && data.answers[0].answer is string && data.answers[0].answer.size() >= 1 && data.answers[0].answer.size() <= 400
+      && data.evidenceUrls is list
+      && (allowEmptyEvidence ? data.evidenceUrls.size() >= 0 : data.evidenceUrls.size() >= 1)
+      && data.evidenceUrls.size() <= 5
+      && (data.evidenceUrls.size() == 0 || (data.evidenceUrls[0] is string && data.evidenceUrls[0].size() >= 5 && data.evidenceUrls[0].size() <= 350000))
+      && data.status in ['pending', 'approved', 'rejected']
+      && (data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() >= 3 && data.rejectionReason.size() <= 500))
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidClaimContact(data) {
+      return data.keys().hasAll(['claimId', 'claimantWhatsApp', 'createdAt'])
+        && data.keys().hasOnly(['claimId', 'claimantWhatsApp', 'createdAt'])
+        && isValidId(data.claimId)
+        && isValidPhone(data.claimantWhatsApp)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidClaimCodeLookup(data) {
+      return data.keys().hasAll(['claimId', 'noticeId', 'createdAt'])
+        && data.keys().hasOnly(['claimId', 'noticeId', 'createdAt'])
+        && isValidId(data.claimId)
+        && isValidId(data.noticeId)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidClaimHandover(data) {
+      return data.keys().hasAll(['claimId', 'noticeId', 'reporterName', 'reporterWhatsApp', 'approvedAt'])
+        && data.keys().hasOnly(['claimId', 'noticeId', 'reporterName', 'reporterWhatsApp', 'approvedAt'])
+        && isValidId(data.claimId)
+        && isValidId(data.noticeId)
+        && data.reporterName is string && data.reporterName.size() >= 1 && data.reporterName.size() <= 80
+        && isValidPhone(data.reporterWhatsApp)
+        && data.approvedAt is timestamp;
+    }
+
+    function isValidReport(data) {
+      return data.keys().hasAll(['targetType', 'targetId', 'reason', 'status', 'createdAt'])
+        && data.keys().hasOnly(['targetType', 'targetId', 'reason', 'status', 'createdAt'])
+        && data.targetType in ['notice', 'claim']
+        && isValidId(data.targetId)
+        && data.reason is string && data.reason.size() >= 5 && data.reason.size() <= 600
+        && data.status in ['open', 'resolved']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidBannedNumber(data, phoneId) {
+      return data.keys().hasAll(['phoneNumber', 'reason', 'bannedAt'])
+        && data.keys().hasOnly(['phoneNumber', 'reason', 'bannedAt'])
+        && isValidPhone(data.phoneNumber)
+        && data.phoneNumber == phoneId
+        && data.reason is string && data.reason.size() >= 3 && data.reason.size() <= 400
+        && data.bannedAt is timestamp;
+    }
+
+    // --- Collection Rules ---
+
+    match /notices/{noticeId} {
+      allow get: if isValidId(noticeId) && (existing().status in ['open', 'returned', 'archived'] || isAdmin());
+      allow list: if existing().status in ['open', 'returned', 'archived'] || isAdmin();
+      allow create: if isValidId(noticeId)
+        && isValidNotice(incoming())
+        && incoming().status == 'open'
+        && incoming().approvedClaimId == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().closedAt == null;
+      allow update: if isValidId(noticeId)
+        && isValidNotice(incoming())
+        && incoming().type == existing().type
+        && incoming().createdAt == existing().createdAt
+        && incoming().reporterPhoneHash == existing().reporterPhoneHash
+        && incoming().updatedAt == request.time
+        && (existing().status != 'removed' || isAdmin())
+        && (
+          isAdmin()
+          || (
+            existing().status == 'open'
+            && incoming().status == 'open'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'publicDescription', 'location', 'category', 'itemDate', 'updatedAt'])
+          )
+          || (
+            existing().status == 'open'
+            && existing().approvedClaimId == null
+            && incoming().approvedClaimId is string
+            && isValidId(incoming().approvedClaimId)
+            && exists(/databases/$(database)/documents/claims/$(incoming().approvedClaimId))
+            && incoming().diff(existing()).affectedKeys().hasOnly(['approvedClaimId', 'updatedAt'])
+          )
+          || (
+            existing().status == 'open'
+            && existing().approvedClaimId != null
+            && incoming().approvedClaimId == null
+            && incoming().diff(existing()).affectedKeys().hasOnly(['approvedClaimId', 'updatedAt'])
+          )
+          || (
+            existing().status == 'open'
+            && incoming().status in ['returned', 'archived']
+            && incoming().closedAt == request.time
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'closedAt', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /noticeSecrets/{tokenHash} {
+      allow get: if isValidSha256(tokenHash);
+      allow list: if isAdmin();
+      allow create: if isValidSha256(tokenHash)
+        && isValidNoticeSecret(incoming())
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/notices/$(incoming().noticeId));
+      allow update, delete: if isAdmin();
+    }
+
+    match /claims/{claimId} {
+      allow get: if isValidId(claimId);
+      allow list: if isAdmin() || (existing().noticeId is string && existing().claimantPhoneHash is string);
+      allow create: if isValidId(claimId)
+        && isValidClaim(incoming(), false)
+        && incoming().status == 'pending'
+        && incoming().rejectionReason == null
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/notices/$(incoming().noticeId))
+        && get(/databases/$(database)/documents/notices/$(incoming().noticeId)).data.status == 'open';
+      allow update: if isValidId(claimId)
+        && isValidClaim(incoming(), isAdmin())
+        && incoming().claimCodeHash == existing().claimCodeHash
+        && incoming().noticeId == existing().noticeId
+        && incoming().claimantPhoneHash == existing().claimantPhoneHash
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            existing().status == 'pending'
+            && incoming().status == 'approved'
+            && incoming().rejectionReason == null
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt'])
+          )
+          || (
+            existing().status in ['pending', 'approved']
+            && incoming().status == 'rejected'
+            && incoming().rejectionReason is string
+            && incoming().rejectionReason.size() >= 3
+            && incoming().rejectionReason.size() <= 500
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'rejectionReason', 'updatedAt'])
+          )
+          || (
+            existing().status == 'rejected'
+            && incoming().status == 'pending'
+            && incoming().rejectionReason == null
+            && incoming().diff(existing()).affectedKeys().hasOnly(['answers', 'evidenceUrls', 'status', 'rejectionReason', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin();
+    }
+
+    match /claimContacts/{claimId} {
+      allow get, list: if isAdmin();
+      allow create: if isValidId(claimId)
+        && isValidClaimContact(incoming())
+        && incoming().claimId == claimId
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/claims/$(claimId));
+      allow update, delete: if isAdmin();
+    }
+
+    match /claimCodeLookups/{claimCodeHash} {
+      allow get: if isValidSha256(claimCodeHash);
+      allow list: if isAdmin();
+      allow create: if isValidSha256(claimCodeHash)
+        && isValidClaimCodeLookup(incoming())
+        && incoming().createdAt == request.time
+        && existsAfter(/databases/$(database)/documents/claims/$(incoming().claimId));
+      allow update, delete: if isAdmin();
+    }
+
+    match /claimHandovers/{claimCodeHash} {
+      allow get: if isValidSha256(claimCodeHash);
+      allow list: if isAdmin();
+      allow create, update: if isValidSha256(claimCodeHash)
+        && isValidClaimHandover(incoming())
+        && incoming().approvedAt == request.time
+        && exists(/databases/$(database)/documents/claims/$(incoming().claimId));
+      allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow get, list, update, delete: if isAdmin();
+      allow create: if isValidId(reportId)
+        && isValidReport(incoming())
+        && incoming().status == 'open'
+        && incoming().createdAt == request.time;
+    }
+
+    match /bannedNumbers/{phoneNumber} {
+      allow get: if isValidPhone(phoneNumber);
+      allow list: if isAdmin();
+      allow create, update: if isAdmin()
+        && isValidPhone(phoneNumber)
+        && isValidBannedNumber(incoming(), phoneNumber)
+        && incoming().bannedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
+    match /admins/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list, create, update, delete: if isAdmin();
+    }
+  }
+}
