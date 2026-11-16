@@ -35,7 +35,7 @@ import {
 } from '../utils/localStorageStore';
 
 export function MyNoticesPage() {
-  const { account, notifications, syncVault, markAsRead } = useAccount();
+  const { account, institutions, notifications, syncVault, markAsRead } = useAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tokenInput, setTokenInput] = useState('');
   const [bundles, setBundles] = useState<ManagedNoticeBundle[]>([]);
@@ -88,7 +88,13 @@ export function MyNoticesPage() {
           }
         })
       );
-      const valid = results.filter((r): r is ManagedNoticeBundle => r !== null);
+      const valid = results.filter((r): r is ManagedNoticeBundle => {
+        if (!r) return false;
+        if (account?.institutionId && r.notice.institutionId !== account.institutionId) {
+          return false;
+        }
+        return true;
+      });
       valid.forEach((b) => {
         saveManagedNotice({
           noticeId: b.notice.id,
@@ -105,7 +111,7 @@ export function MyNoticesPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account?.institutionId]);
 
   useEffect(() => {
     let active = true;
@@ -153,6 +159,12 @@ export function MyNoticesPage() {
     const found = await getNoticeBundleByToken(extracted);
     if (!found) {
       setActionError('No notice found for that management token.');
+      return;
+    }
+    if (account?.institutionId && found.notice.institutionId !== account.institutionId) {
+      setActionError(
+        `This notice belongs to ${found.notice.institutionName}, while your account is registered under ${account.institutionName}.`
+      );
       return;
     }
     saveManagedNotice({
@@ -424,7 +436,7 @@ export function MyNoticesPage() {
                         {bundle.notice.title}
                       </h2>
                       <p className="text-xs text-slate-500 break-words">
-                        {bundle.notice.location} · {bundle.notice.category} · {formatShortDate(bundle.notice.itemDate)}
+                        {bundle.notice.institutionName} · {bundle.notice.location} · {bundle.notice.category} · {formatShortDate(bundle.notice.itemDate)}
                       </p>
                     </div>
                   </div>
@@ -766,16 +778,44 @@ export function MyNoticesPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Location</label>
-                <input
-                  type="text"
-                  required
-                  minLength={2}
-                  maxLength={120}
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
-                />
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Location ({editingBundle.notice.institutionName})
+                </label>
+                {(() => {
+                  const instLocations =
+                    institutions.find((i) => i.id === editingBundle.notice.institutionId)
+                      ?.locations || [];
+                  if (instLocations.length > 0) {
+                    const options = instLocations.includes(editLocation)
+                      ? instLocations
+                      : [editLocation, ...instLocations].filter(Boolean);
+                    return (
+                      <select
+                        required
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm bg-white"
+                      >
+                        {options.map((loc) => (
+                          <option key={loc} value={loc}>
+                            {loc}
+                          </option>
+                        ))}
+                      </select>
+                    );
+                  }
+                  return (
+                    <input
+                      type="text"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      value={editLocation}
+                      onChange={(e) => setEditLocation(e.target.value)}
+                      className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
+                    />
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">

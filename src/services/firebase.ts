@@ -1,12 +1,17 @@
 import { initializeApp } from 'firebase/app';
 import {
-  User,
+  EmailAuthProvider,
   GoogleAuthProvider,
+  User,
   getAuth,
+  linkWithCredential,
   onAuthStateChanged,
+  reauthenticateWithPopup,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword,
 } from 'firebase/auth';
 import {
   Timestamp,
@@ -31,6 +36,8 @@ import {
   AbuseReport,
   AppNotification,
   BannedNumber,
+  CAMPUS_LOCATIONS,
+  CampusInstitution,
   ClaimAnswer,
   ClaimHandover,
   ClaimRecord,
@@ -167,6 +174,8 @@ function mapNoticeDoc(id: string, data: Record<string, unknown>): PublicNotice {
     title: String(data.title || ''),
     publicDescription: String(data.publicDescription || ''),
     location: String(data.location || ''),
+    institutionId: String(data.institutionId || 'inst_makerere'),
+    institutionName: String(data.institutionName || 'Makerere University'),
     itemDate: String(data.itemDate || ''),
     photos: Array.isArray(data.photos) ? (data.photos as string[]) : [],
     reporterFirstName: String(data.reporterFirstName || 'Student'),
@@ -178,6 +187,16 @@ function mapNoticeDoc(id: string, data: Record<string, unknown>): PublicNotice {
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     closedAt: data.closedAt ? toDate(data.closedAt) : null,
+  };
+}
+
+function mapInstitutionDoc(id: string, data: Record<string, unknown>): CampusInstitution {
+  return {
+    id,
+    name: String(data.name || ''),
+    locations: Array.isArray(data.locations) ? data.locations.map(String).filter(Boolean) : [],
+    createdAt: toDate(data.createdAt),
+    updatedAt: toDate(data.updatedAt),
   };
 }
 
@@ -197,6 +216,203 @@ function mapClaimDoc(id: string, data: Record<string, unknown>): ClaimRecord {
   };
 }
 
+export const FALLBACK_INSTITUTIONS: CampusInstitution[] = [
+  {
+    id: 'inst_makerere',
+    name: 'Makerere University',
+    locations: [...CAMPUS_LOCATIONS],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    id: 'inst_kyambogo',
+    name: 'Kyambogo University',
+    locations: [
+      'Barclays Library',
+      'Faculty of Engineering',
+      'Central Teaching Facility',
+      'West End Dining Hall',
+      'Peace Park',
+      'Campus Security Post',
+    ],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
+
+let seedInstAttempted = false;
+
+export async function seedCampusInstitutionsIfEmpty(): Promise<void> {
+  if (!hasFirebaseConfig || seedInstAttempted) return;
+  seedInstAttempted = true;
+  if (localStorage.getItem('campustrace_inst_seeded_v1') === 'true') return;
+
+  try {
+    const existingSnap = await getDocs(
+      query(collection(db, 'institutions'), where('name', '>=', ''))
+    );
+    if (!existingSnap.empty) {
+      localStorage.setItem('campustrace_inst_seeded_v1', 'true');
+      return;
+    }
+
+    const batch = writeBatch(db);
+    for (const inst of FALLBACK_INSTITUTIONS) {
+      batch.set(doc(db, 'institutions', inst.id), {
+        name: inst.name,
+        locations: inst.locations,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    }
+    await batch.commit();
+    localStorage.setItem('campustrace_inst_seeded_v1', 'true');
+  } catch (err) {
+    seedInstAttempted = false;
+    console.warn('Institution seed skipped or already completed:', err);
+  }
+}
+
+export function subscribeInstitutions(
+  onData: (institutions: CampusInstitution[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  if (!hasFirebaseConfig) {
+    onData(FALLBACK_INSTITUTIONS);
+    return () => {};
+  }
+
+  return onSnapshot(
+    query(collection(db, 'institutions'), where('name', '>=', '')),
+    (snapshot) => {
+      const items = snapshot.docs
+        .map((d) => mapInstitutionDoc(d.id, d.data()))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      onData(items);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'institutions');
+      } catch (wrapped) {
+        if (onError && wrapped instanceof Error) {
+          onError(wrapped);
+        }
+      }
+    }
+  );
+}
+
+export async function fetchInstitutions(): Promise<CampusInstitution[]> {
+  if (!hasFirebaseConfig) {
+    return FALLBACK_INSTITUTIONS;
+  }
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'institutions'), where('name', '>=', ''))
+    );
+    return snap.docs
+      .map((d) => mapInstitutionDoc(d.id, d.data()))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, 'institutions');
+  }
+}
+
+function sanitizeLocations(rawLocations: string[]): string[] {
+  const unique = new Map<string, string>();
+  rawLocations.forEach((loc) => {
+    const clean = loc.trim();
+    if (clean.length >= 2 && clean.length <= 120) {
+      const key = clean.toLowerCase();
+      if (!unique.has(key)) {
+        unique.set(key, clean);
+      }
+    }
+  });
+  return Array.from(unique.values()).slice(0, 40);
+}
+
+export async function adminCreateInstitution(params: {
+  name: string;
+  locations: string[];
+}): Promise<CampusInstitution> {
+  const cleanName = params.name.trim();
+  if (cleanName.length < 2 || cleanName.length > 100) {
+    throw new Error('Institution name must be between 2 and 100 characters.');
+  }
+  const cleanLocations = sanitizeLocations(params.locations);
+  const instId = generateDocId('inst');
+  const path = `institutions/${instId}`;
+  try {
+    await setDoc(doc(db, 'institutions', instId), {
+      name: cleanName,
+      locations: cleanLocations,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    const now = new Date();
+    return {
+      id: instId,
+      name: cleanName,
+      locations: cleanLocations,
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, path);
+  }
+}
+
+export async function adminUpdateInstitution(
+  institutionId: string,
+  params: { name: string; locations: string[]; previousName?: string }
+): Promise<void> {
+  const cleanName = params.name.trim();
+  if (cleanName.length < 2 || cleanName.length > 100) {
+    throw new Error('Institution name must be between 2 and 100 characters.');
+  }
+  const cleanLocations = sanitizeLocations(params.locations);
+  const path = `institutions/${institutionId}`;
+  try {
+    await updateDoc(doc(db, 'institutions', institutionId), {
+      name: cleanName,
+      locations: cleanLocations,
+      updatedAt: serverTimestamp(),
+    });
+
+    if (params.previousName && params.previousName.trim() !== cleanName) {
+      try {
+        const noticeSnap = await getDocs(
+          query(collection(db, 'notices'), where('institutionId', '==', institutionId))
+        );
+        if (!noticeSnap.empty) {
+          const batch = writeBatch(db);
+          noticeSnap.docs.forEach((d) => {
+            batch.update(d.ref, {
+              institutionName: cleanName,
+              updatedAt: serverTimestamp(),
+            });
+          });
+          await batch.commit();
+        }
+      } catch {
+        // Non-fatal if notice name sync is skipped
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function adminDeleteInstitution(institutionId: string): Promise<void> {
+  const path = `institutions/${institutionId}`;
+  try {
+    await deleteDoc(doc(db, 'institutions', institutionId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, path);
+  }
+}
+
 // Fallback seed items when Firestore is unconfigured or offline
 export const FALLBACK_SEED_NOTICES: PublicNotice[] = [
   {
@@ -208,6 +424,8 @@ export const FALLBACK_SEED_NOTICES: PublicNotice[] = [
     publicDescription:
       'Found left beneath a reading desk near the east windows on Level 2 of the Main Library. Contains a notebook and stainless steel water bottle in the side pocket.',
     location: 'Main Library',
+    institutionId: 'inst_makerere',
+    institutionName: 'Makerere University',
     itemDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     photos: ['/src/assets/images/campus_laptop_backpack_1794829991466.jpg'],
     reporterFirstName: 'Grace',
@@ -230,6 +448,8 @@ export const FALLBACK_SEED_NOTICES: PublicNotice[] = [
     publicDescription:
       'Picked up from the stone bench along the walkway outside Senate Courtyard around 11:30 AM. Handed in safely for owner verification.',
     location: 'Senate Courtyard',
+    institutionId: 'inst_makerere',
+    institutionName: 'Makerere University',
     itemDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     photos: ['/src/assets/images/campus_student_keys_1794829991929.jpg'],
     reporterFirstName: 'Samuel',
@@ -252,6 +472,8 @@ export const FALLBACK_SEED_NOTICES: PublicNotice[] = [
     publicDescription:
       'Found on the third-row wooden desk in Lecture Theatre B right after the morning session. Case still holds battery charge.',
     location: 'Computing & IT Block',
+    institutionId: 'inst_makerere',
+    institutionName: 'Makerere University',
     itemDate: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     photos: ['/src/assets/images/campus_wireless_earbuds_1794829992623.jpg'],
     reporterFirstName: 'Daniel',
@@ -274,6 +496,8 @@ export const FALLBACK_SEED_NOTICES: PublicNotice[] = [
     publicDescription:
       'Lost my black scientific calculator with red AC/DEL keys during lunch hour near the concrete tables. Needed urgently for upcoming engineering exams.',
     location: 'Freedom Square',
+    institutionId: 'inst_makerere',
+    institutionName: 'Makerere University',
     itemDate: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     photos: ['/src/assets/images/campus_scientific_calculator_1794829992795.jpg'],
     reporterFirstName: 'Miriam',
@@ -294,6 +518,7 @@ let seedAttempted = false;
 export async function seedCampusNoticesIfEmpty(): Promise<void> {
   if (!hasFirebaseConfig || seedAttempted) return;
   seedAttempted = true;
+  await seedCampusInstitutionsIfEmpty();
   if (localStorage.getItem('campustrace_seeded_v1') === 'true') return;
 
   try {
@@ -386,6 +611,8 @@ export async function seedCampusNoticesIfEmpty(): Promise<void> {
         title: item.notice.title,
         publicDescription: item.notice.publicDescription,
         location: item.notice.location,
+        institutionId: item.notice.institutionId,
+        institutionName: item.notice.institutionName,
         itemDate: item.notice.itemDate,
         photos: item.notice.photos,
         reporterFirstName: item.notice.reporterFirstName,
@@ -414,11 +641,17 @@ export async function seedCampusNoticesIfEmpty(): Promise<void> {
 }
 
 export function subscribePublicNotices(
+  institutionId: string | null,
   onData: (notices: PublicNotice[]) => void,
   onError?: (err: Error) => void
 ): () => void {
+  if (!institutionId) {
+    onData([]);
+    return () => {};
+  }
+
   if (!hasFirebaseConfig) {
-    onData(FALLBACK_SEED_NOTICES);
+    onData(FALLBACK_SEED_NOTICES.filter((n) => n.institutionId === institutionId));
     return () => {};
   }
 
@@ -430,7 +663,9 @@ export function subscribePublicNotices(
   return onSnapshot(
     q,
     (snapshot) => {
-      const items = snapshot.docs.map((d) => mapNoticeDoc(d.id, d.data()));
+      const items = snapshot.docs
+        .map((d) => mapNoticeDoc(d.id, d.data()))
+        .filter((n) => n.institutionId === institutionId);
       items.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
       onData(items);
     },
@@ -555,6 +790,8 @@ export interface CreateNoticeInput {
   title: string;
   publicDescription: string;
   location: string;
+  institutionId: string;
+  institutionName: string;
   itemDate: string;
   photoFiles: File[];
   verificationQuestions: VerificationQuestion[];
@@ -565,6 +802,12 @@ export interface CreateNoticeInput {
 export async function createNotice(
   input: CreateNoticeInput
 ): Promise<{ noticeId: string; managementToken: string; notice: PublicNotice }> {
+  const cleanInstId = input.institutionId.trim();
+  const cleanInstName = input.institutionName.trim();
+  if (!cleanInstId || !cleanInstName) {
+    throw new Error('Please select your campus institution in your Profile before posting a notice.');
+  }
+
   const normalizedPhone = normalizeUgPhone(input.reporterWhatsApp);
   if (!isValidUgPhone(normalizedPhone)) {
     throw new Error('WhatsApp number must match +256 followed by 9 digits (e.g. +256772123456).');
@@ -619,6 +862,8 @@ export async function createNotice(
     title: input.title.trim(),
     publicDescription: input.publicDescription.trim(),
     location: input.location.trim(),
+    institutionId: cleanInstId,
+    institutionName: cleanInstName,
     itemDate: input.itemDate,
     photos: uploadedPhotos,
     reporterFirstName: firstName,
@@ -656,6 +901,8 @@ export async function createNotice(
       title: input.title.trim(),
       publicDescription: input.publicDescription.trim(),
       location: input.location.trim(),
+      institutionId: cleanInstId,
+      institutionName: cleanInstName,
       itemDate: input.itemDate,
       photos: uploadedPhotos,
       reporterFirstName: firstName,
@@ -805,6 +1052,7 @@ export async function approveClaimOnNotice(params: {
       const notifId = generateDocId('ntf');
       batch.set(doc(db, 'notifications', notifId), {
         recipientPhoneHash: claimantPhoneHash,
+        ...(noticeData.institutionId ? { institutionId: String(noticeData.institutionId) } : {}),
         kind: 'claim_approved' as NotificationKind,
         noticeId: params.noticeId,
         claimId: params.claimId,
@@ -855,11 +1103,13 @@ export async function rejectClaimOnNotice(params: {
 
   if (claimSnap.exists()) {
     const claimantPhoneHash = String(claimSnap.data().claimantPhoneHash || '');
-    const noticeTitle = noticeSnap.exists() ? String(noticeSnap.data().title || 'Campus Item') : 'Campus Item';
+    const noticeData = noticeSnap.exists() ? noticeSnap.data() : null;
+    const noticeTitle = noticeData ? String(noticeData.title || 'Campus Item') : 'Campus Item';
     if (claimantPhoneHash.length === 64) {
       const notifId = generateDocId('ntf');
       batch.set(doc(db, 'notifications', notifId), {
         recipientPhoneHash: claimantPhoneHash,
+        ...(noticeData?.institutionId ? { institutionId: String(noticeData.institutionId) } : {}),
         kind: 'claim_rejected' as NotificationKind,
         noticeId: params.noticeId,
         claimId: params.claimId,
@@ -963,6 +1213,7 @@ export async function submitClaim(
     const notifId = generateDocId('ntf');
     batch.set(doc(db, 'notifications', notifId), {
       recipientPhoneHash: reporterPhoneHash,
+      ...(noticeData.institutionId ? { institutionId: String(noticeData.institutionId) } : {}),
       kind: 'new_claim' as NotificationKind,
       noticeId: input.noticeId,
       claimId,
@@ -1076,6 +1327,7 @@ export async function resubmitRejectedClaim(params: {
       const notifId = generateDocId('ntf');
       batch.set(doc(db, 'notifications', notifId), {
         recipientPhoneHash: reporterPhoneHash,
+        ...(noticeData.institutionId ? { institutionId: String(noticeData.institutionId) } : {}),
         kind: 'claim_resubmitted' as NotificationKind,
         noticeId,
         claimId: params.claimId,
@@ -1134,6 +1386,51 @@ export async function adminSignInWithGoogle(): Promise<User> {
 
 export async function adminSignOut(): Promise<void> {
   await signOut(auth);
+}
+
+export async function adminSetOrUpdatePassword(newPassword: string): Promise<'linked' | 'updated'> {
+  const user = auth.currentUser;
+  if (!user || !user.email) {
+    throw new Error('You must be signed in as an admin with an email address first.');
+  }
+  const trimmed = newPassword.trim();
+  if (trimmed.length < 6) {
+    throw new Error('Firebase Auth passwords must be at least 6 characters.');
+  }
+
+  const hasPasswordProvider = user.providerData.some((p) => p.providerId === 'password');
+  const applyPassword = async () => {
+    if (hasPasswordProvider) {
+      await updatePassword(user, trimmed);
+      return 'updated' as const;
+    }
+    const credential = EmailAuthProvider.credential(user.email!, trimmed);
+    await linkWithCredential(user, credential);
+    return 'linked' as const;
+  };
+
+  try {
+    return await applyPassword();
+  } catch (err) {
+    const code = (err as { code?: string })?.code || '';
+    if (code === 'auth/requires-recent-login') {
+      await reauthenticateWithPopup(user, new GoogleAuthProvider());
+      return await applyPassword();
+    }
+    throw err;
+  }
+}
+
+export async function adminSendVerificationEmail(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No active user session.');
+  await sendEmailVerification(user);
+}
+
+export async function adminReloadUser(): Promise<User | null> {
+  if (!auth.currentUser) return null;
+  await auth.currentUser.reload();
+  return auth.currentUser;
 }
 
 export async function verifyAdminAuthorization(user: User): Promise<boolean> {
@@ -1325,10 +1622,17 @@ export async function registerStudentAccount(params: {
   name: string;
   phoneNumber: string;
   pin: string;
+  institutionId: string;
+  institutionName: string;
 }): Promise<StudentAccountSession> {
   const cleanName = params.name.trim();
   if (cleanName.length < 2) {
     throw new Error('Please enter your full name.');
+  }
+  const cleanInstId = params.institutionId.trim();
+  const cleanInstName = params.institutionName.trim();
+  if (!cleanInstId || !cleanInstName) {
+    throw new Error('Please select your campus institution.');
   }
   const normalizedPhone = normalizeUgPhone(params.phoneNumber);
   if (!isValidUgPhone(normalizedPhone)) {
@@ -1366,6 +1670,8 @@ export async function registerStudentAccount(params: {
       name: cleanName,
       phoneNumber: normalizedPhone,
       pinHash,
+      institutionId: cleanInstId,
+      institutionName: cleanInstName,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1378,6 +1684,8 @@ export async function registerStudentAccount(params: {
     phoneNumber: normalizedPhone,
     phoneHash,
     accessKey,
+    institutionId: cleanInstId,
+    institutionName: cleanInstName,
     previousPhoneHashes: [],
   };
 }
@@ -1424,6 +1732,8 @@ export async function signInStudentAccount(params: {
     phoneNumber: normalizedPhone,
     phoneHash,
     accessKey,
+    institutionId: String(data.institutionId || ''),
+    institutionName: String(data.institutionName || ''),
     previousPhoneHashes,
   };
 }
@@ -1432,10 +1742,18 @@ export async function updateStudentAccountProfile(params: {
   currentSession: StudentAccountSession;
   newName: string;
   newPhoneNumber: string;
+  newInstitutionId: string;
+  newInstitutionName: string;
 }): Promise<StudentAccountSession> {
   const cleanName = params.newName.trim();
   if (cleanName.length < 2 || cleanName.length > 80) {
     throw new Error('Name must be between 2 and 80 characters.');
+  }
+
+  const cleanInstId = params.newInstitutionId.trim();
+  const cleanInstName = params.newInstitutionName.trim();
+  if (!cleanInstId || !cleanInstName) {
+    throw new Error('Please select your campus institution.');
   }
 
   const normalizedNewPhone = normalizeUgPhone(params.newPhoneNumber);
@@ -1485,11 +1803,13 @@ export async function updateStudentAccountProfile(params: {
     })
   );
 
-  // Case 1: Same WhatsApp number, only updating display name
+  // Case 1: Same WhatsApp number, updating display name / institution
   if (normalizedNewPhone === params.currentSession.phoneNumber) {
     const batch = writeBatch(db);
     batch.update(oldAccountRef, {
       name: cleanName,
+      institutionId: cleanInstId,
+      institutionName: cleanInstName,
       updatedAt: serverTimestamp(),
     });
     existingSecretRefs.forEach((tokenHash) => {
@@ -1507,6 +1827,8 @@ export async function updateStudentAccountProfile(params: {
     return {
       ...params.currentSession,
       name: cleanName,
+      institutionId: cleanInstId,
+      institutionName: cleanInstName,
     };
   }
 
@@ -1536,6 +1858,8 @@ export async function updateStudentAccountProfile(params: {
     name: cleanName,
     phoneNumber: normalizedNewPhone,
     pinHash,
+    institutionId: cleanInstId,
+    institutionName: cleanInstName,
     previousPhoneHashes: nextPrevHashes,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -1584,6 +1908,8 @@ export async function updateStudentAccountProfile(params: {
     phoneNumber: normalizedNewPhone,
     phoneHash: newPhoneHash,
     accessKey: newAccessKey,
+    institutionId: cleanInstId,
+    institutionName: cleanInstName,
     previousPhoneHashes: nextPrevHashes,
   };
 }
@@ -1699,6 +2025,7 @@ export function subscribeAccountNotifications(
           return {
             id: d.id,
             recipientPhoneHash: String(data.recipientPhoneHash || ''),
+            institutionId: data.institutionId ? String(data.institutionId) : undefined,
             kind: (data.kind as NotificationKind) || 'new_claim',
             noticeId: String(data.noticeId || ''),
             claimId: String(data.claimId || ''),

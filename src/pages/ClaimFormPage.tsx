@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BellRing, Check, Copy, FileText, Lock, Trash2, UploadCloud, UserCheck } from 'lucide-react';
+import { ArrowLeft, BellRing, Building2, Check, Copy, FileText, Lock, Trash2, UploadCloud, UserCheck } from 'lucide-react';
 import { useAccount } from '../context/AccountContext';
 import { extractFriendlyError, getNoticeById, submitClaim } from '../services/firebase';
 import { PublicNotice } from '../types';
@@ -123,9 +123,11 @@ export function ClaimFormPage() {
             name: claimantName,
             phoneNumber: normalizedPhone,
             pin: accountPin.trim(),
+            institutionId: notice.institutionId,
+            institutionName: notice.institutionName,
           });
           await saveClaimToAccount(localClaim, newSession.accessKey).catch(() => {});
-          accountNotice = `Follow-up account created for ${newSession.name}. You will get an alert when your claim is reviewed.`;
+          accountNotice = `Follow-up account created under ${notice.institutionName} for ${newSession.name}. You will get an alert when your claim is reviewed.`;
         } catch (accErr) {
           accountNotice = `Claim submitted! Account note: ${extractFriendlyError(accErr)} You can sign in on the Account page to track updates.`;
         }
@@ -155,6 +157,27 @@ export function ClaimFormPage() {
           className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
         >
           Return to Browse
+        </Link>
+      </div>
+    );
+  }
+
+  if (account && account.institutionId && notice.institutionId !== account.institutionId) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-amber-200 p-8 text-center space-y-4">
+        <Building2 className="w-10 h-10 text-amber-600 mx-auto" />
+        <h1 className="font-display text-xl font-bold text-slate-900">
+          Different Campus Institution
+        </h1>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          This notice belongs to <strong>{notice.institutionName}</strong>, while your account is registered under{' '}
+          <strong>{account.institutionName}</strong>. Claims can only be submitted within your registered institution.
+        </p>
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
+        >
+          Return to {account.institutionName}
         </Link>
       </div>
     );
@@ -246,7 +269,7 @@ export function ClaimFormPage() {
 
       <div className="space-y-1">
         <p className="text-xs font-semibold text-emerald-700">
-          {notice.type === 'found' ? 'Claim Ownership' : 'Report Recovery'}
+          {notice.type === 'found' ? 'Claim Ownership' : 'Report Recovery'} · {notice.institutionName}
         </p>
         <h1 className="font-display text-2xl font-bold text-slate-900">{notice.title}</h1>
         <p className="text-sm text-slate-600">

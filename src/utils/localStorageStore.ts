@@ -3,6 +3,7 @@ import { LocalManagedNotice, LocalTrackedClaim, StudentAccountSession } from '..
 const MANAGED_NOTICES_KEY = 'campustrace_managed_notices_v1';
 const TRACKED_CLAIMS_KEY = 'campustrace_tracked_claims_v1';
 const ACCOUNT_SESSION_KEY = 'campustrace_account_session_v1';
+const GUEST_INSTITUTION_KEY = 'campustrace_guest_institution_v1';
 
 export function getSavedManagedNotices(): LocalManagedNotice[] {
   try {
@@ -59,7 +60,11 @@ export function getSavedAccountSession(): StudentAccountSession | null {
       typeof parsed.phoneHash === 'string' &&
       typeof parsed.accessKey === 'string'
     ) {
-      return parsed as StudentAccountSession;
+      return {
+        ...(parsed as StudentAccountSession),
+        institutionId: typeof parsed.institutionId === 'string' ? parsed.institutionId : '',
+        institutionName: typeof parsed.institutionName === 'string' ? parsed.institutionName : '',
+      };
     }
     return null;
   } catch {
@@ -77,4 +82,21 @@ export function clearAccountSession(): void {
 
 export function clearManagedNotices(): void {
   localStorage.removeItem(MANAGED_NOTICES_KEY);
+}
+
+export function getSavedGuestInstitutionId(): string | null {
+  try {
+    const val = localStorage.getItem(GUEST_INSTITUTION_KEY);
+    return val && val.trim() ? val.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveGuestInstitutionId(institutionId: string): void {
+  localStorage.setItem(GUEST_INSTITUTION_KEY, institutionId);
+}
+
+export function clearGuestInstitutionId(): void {
+  localStorage.removeItem(GUEST_INSTITUTION_KEY);
 }

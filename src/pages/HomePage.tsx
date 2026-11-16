@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, PlusCircle, RotateCcw, Search, ShieldCheck } from 'lucide-react';
+import {
+  Building2,
+  Calendar,
+  MapPin,
+  PlusCircle,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+} from 'lucide-react';
 import { NoticeImage } from '../components/NoticeImage';
+import { useAccount } from '../context/AccountContext';
 import {
   extractFriendlyError,
   seedCampusNoticesIfEmpty,
@@ -11,6 +20,15 @@ import { CATEGORIES, NoticeType, PublicNotice } from '../types';
 import { formatShortDate, getEffectiveNoticeStatus, isOlderThanDays } from '../utils/cryptoAndValidation';
 
 export function HomePage() {
+  const {
+    account,
+    institutions,
+    institutionsLoading,
+    activeInstitutionId,
+    activeInstitution,
+    setGuestInstitutionId,
+  } = useAccount();
+
   const [notices, setNotices] = useState<PublicNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +42,19 @@ export function HomePage() {
 
   useEffect(() => {
     seedCampusNoticesIfEmpty();
+  }, []);
+
+  useEffect(() => {
+    setLocationFilter('all');
+    if (!activeInstitutionId) {
+      setNotices([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     const unsub = subscribePublicNotices(
+      activeInstitutionId,
       (data) => {
         setNotices(data);
         setLoading(false);
@@ -36,19 +66,19 @@ export function HomePage() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [activeInstitutionId]);
 
   const openNotices = useMemo(() => {
     return notices.filter((n) => getEffectiveNoticeStatus(n) === 'open');
   }, [notices]);
 
   const availableLocations = useMemo(() => {
-    const set = new Set<string>();
+    const set = new Set<string>(activeInstitution?.locations || []);
     openNotices.forEach((n) => {
       if (n.location.trim()) set.add(n.location.trim());
     });
     return Array.from(set).sort();
-  }, [openNotices]);
+  }, [openNotices, activeInstitution]);
 
   const filteredNotices = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -90,20 +120,117 @@ export function HomePage() {
     setExactDate('');
   }
 
+  // Legacy account guard: prompt user to pick their institution on Account page
+  if (account && !account.institutionId) {
+    return (
+      <div className="max-w-lg mx-auto bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center space-y-4">
+        <Building2 className="w-10 h-10 text-amber-600 mx-auto" />
+        <h1 className="font-display text-2xl font-bold text-slate-900">
+          Select Your Campus Institution
+        </h1>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Notices are strictly scoped to your campus institution. Choose your institution in your Profile Dashboard to view items and alerts for your campus.
+        </p>
+        <Link
+          to="/account"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+        >
+          Open Profile Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  // Visitor / unscoped guard: pick a campus institution or sign in before showing notices
+  if (!activeInstitutionId) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        <div className="space-y-2 text-center">
+          <p className="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5 justify-center">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>Institution-Scoped Lost &amp; Found</span>
+          </p>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+            Select Your Campus Institution
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-lg mx-auto">
+            Choose your campus to view active lost and found notices for that institution, or sign in with your account.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+          {institutionsLoading ? (
+            <div className="space-y-3 animate-pulse">
+              <div className="h-14 bg-slate-100 rounded-xl" />
+              <div className="h-14 bg-slate-100 rounded-xl" />
+            </div>
+          ) : institutions.length === 0 ? (
+            <p className="text-sm text-slate-600 text-center py-4">
+              No campus institutions have been configured by the Admin yet.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {institutions.map((inst) => (
+                <button
+                  key={inst.id}
+                  type="button"
+                  onClick={() => setGuestInstitutionId(inst.id)}
+                  className="text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-700 hover:bg-emerald-50/40 transition-colors space-y-1"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <Building2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                    <span>{inst.name}</span>
+                  </div>
+                  <p className="text-xs text-slate-500 tabular-nums">
+                    {inst.locations.length} campus location{inst.locations.length === 1 ? '' : 's'}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+            <span>Already have a CampusTrace account?</span>
+            <Link
+              to="/account"
+              className="min-h-[38px] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 inline-flex items-center"
+            >
+              Sign In / Create Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Focused Editorial Hero */}
       <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-slate-200">
         <div className="space-y-2 max-w-2xl">
-          <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>Ownership verified before WhatsApp contact is shared</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-emerald-700">
+            <span className="inline-flex items-center gap-1.5">
+              <Building2 className="w-4 h-4 shrink-0" />
+              <span>{activeInstitution?.name || 'Campus Institution'}</span>
+            </span>
+            {!account && (
+              <>
+                <span className="text-slate-300">·</span>
+                <button
+                  type="button"
+                  onClick={() => setGuestInstitutionId(null)}
+                  className="text-slate-600 hover:text-slate-900 underline underline-offset-2 font-medium"
+                >
+                  Switch Campus
+                </button>
+              </>
+            )}
+          </div>
           <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
             Campus Lost &amp; Found Board
           </h1>
           <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-            Browse active items reported across campus. Claimants verify ownership with private questions and evidence before any phone number is revealed.
+            Showing active items reported at <strong>{activeInstitution?.name}</strong>. Ownership is verified privately before any WhatsApp number is shared.
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -185,7 +312,7 @@ export function HomePage() {
               onChange={(e) => setLocationFilter(e.target.value)}
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
             >
-              <option value="all">All Locations</option>
+              <option value="all">All Campus Locations</option>
               {availableLocations.map((loc) => (
                 <option key={loc} value={loc}>
                   {loc}

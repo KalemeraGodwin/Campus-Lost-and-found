@@ -16,12 +16,14 @@
         "reporterFirstName": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Reporter first name shown publicly" },
         "verificationPrompts": { "type": "array", "description": "Public list of verification question prompts without expected answers" },
         "reporterPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of Ugandan WhatsApp number for 24h rate limiting and notification routing" },
+        "institutionId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Campus institution ID" },
+        "institutionName": { "type": "string", "minLength": 2, "maxLength": 100, "description": "Campus institution name" },
         "approvedClaimId": { "type": "string", "maxLength": 128, "description": "Currently approved claim document ID or null" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" },
         "closedAt": { "type": "string", "format": "date-time", "description": "Timestamp when marked returned or closed" }
       },
-      "required": ["type", "status", "category", "title", "publicDescription", "location", "itemDate", "photos", "reporterFirstName", "verificationPrompts", "reporterPhoneHash", "createdAt", "updatedAt"]
+      "required": ["type", "status", "category", "title", "publicDescription", "location", "itemDate", "photos", "reporterFirstName", "verificationPrompts", "reporterPhoneHash", "institutionId", "institutionName", "createdAt", "updatedAt"]
     },
     "NoticeSecret": {
       "title": "NoticeSecret",
@@ -89,19 +91,33 @@
       },
       "required": ["claimId", "noticeId", "reporterName", "reporterWhatsApp", "approvedAt"]
     },
+    "Institution": {
+      "title": "Institution",
+      "description": "Campus institution configured by Admin with its list of possible campus locations.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 2, "maxLength": 100, "description": "Institution or campus name" },
+        "locations": { "type": "array", "description": "Possible campus locations within this institution (0 to 40)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["name", "locations", "createdAt", "updatedAt"]
+    },
     "StudentAccount": {
       "title": "StudentAccount",
-      "description": "Student follow-up account keyed by SHA-256 of WhatsApp number with PIN verification.",
+      "description": "Student follow-up account keyed by SHA-256 of WhatsApp number with PIN verification and institution scoping.",
       "type": "object",
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Student full name" },
         "phoneNumber": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Ugandan WhatsApp number" },
         "pinHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of user PIN" },
+        "institutionId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Student campus institution ID" },
+        "institutionName": { "type": "string", "minLength": 2, "maxLength": 100, "description": "Student campus institution name" },
         "previousPhoneHashes": { "type": "array", "description": "Optional list of prior phone SHA-256 hashes (max 10) for notification continuity after updating WhatsApp number" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
       },
-      "required": ["name", "phoneNumber", "pinHash", "createdAt", "updatedAt"]
+      "required": ["name", "phoneNumber", "pinHash", "institutionId", "institutionName", "createdAt", "updatedAt"]
     },
     "VaultNoticeEntry": {
       "title": "VaultNoticeEntry",
@@ -135,6 +151,7 @@
       "type": "object",
       "properties": {
         "recipientPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "institutionId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "kind": { "type": "string", "enum": ["new_claim", "claim_resubmitted", "claim_approved", "claim_rejected"] },
         "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
@@ -204,6 +221,10 @@
     "/claimHandovers/{claimCodeHash}": {
       "schema": { "$ref": "#/entities/ClaimHandover" },
       "description": "Revealed reporter WhatsApp for an approved claim"
+    },
+    "/institutions/{institutionId}": {
+      "schema": { "$ref": "#/entities/Institution" },
+      "description": "Campus institutions and their allowed campus locations managed by Admin"
     },
     "/accounts/{phoneHash}": {
       "schema": { "$ref": "#/entities/StudentAccount" },

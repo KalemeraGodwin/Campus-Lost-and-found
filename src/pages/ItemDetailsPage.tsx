@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Calendar, Flag, Lock, MapPin, ShieldCheck, User } from 'lucide-react';
+import { ArrowLeft, Building2, Calendar, Flag, Lock, MapPin, ShieldCheck, User } from 'lucide-react';
 import { NoticeImage } from '../components/NoticeImage';
 import { ReportAbuseModal } from '../components/ReportAbuseModal';
 import { NoticeStatusIndicator } from '../components/StatusText';
+import { useAccount } from '../context/AccountContext';
 import { extractFriendlyError, getNoticeById } from '../services/firebase';
 import { PublicNotice } from '../types';
 import { formatShortDate, getEffectiveNoticeStatus } from '../utils/cryptoAndValidation';
 
 export function ItemDetailsPage() {
   const { id } = useParams<{ id: string }>();
+  const { account } = useAccount();
   const [notice, setNotice] = useState<PublicNotice | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +60,27 @@ export function ItemDetailsPage() {
           className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
         >
           Back to Browse
+        </Link>
+      </div>
+    );
+  }
+
+  if (account && account.institutionId && notice.institutionId !== account.institutionId) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-amber-200 p-8 text-center space-y-4">
+        <Building2 className="w-10 h-10 text-amber-600 mx-auto" />
+        <h1 className="font-display text-xl font-bold text-slate-900">
+          Different Campus Institution
+        </h1>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          This notice is attached to <strong>{notice.institutionName}</strong>. Your account is registered under{' '}
+          <strong>{account.institutionName}</strong>, so you only see information for your campus.
+        </p>
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
+        >
+          Return to {account.institutionName}
         </Link>
       </div>
     );
@@ -128,6 +151,10 @@ export function ItemDetailsPage() {
           <p className="text-sm text-slate-700 leading-relaxed">{notice.publicDescription}</p>
 
           <div className="space-y-2.5 pt-3 border-t border-slate-100 text-sm text-slate-600">
+            <div className="flex items-center gap-2.5">
+              <Building2 className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span className="font-medium text-slate-800">{notice.institutionName}</span>
+            </div>
             <div className="flex items-center gap-2.5">
               <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
               <span>{notice.location}</span>

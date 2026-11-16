@@ -1,17 +1,34 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Archive, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
+import { Archive, Building2, CheckCircle2, Clock, PackageCheck } from 'lucide-react';
+import { useAccount } from '../context/AccountContext';
 import { extractFriendlyError, subscribePublicNotices } from '../services/firebase';
 import { CATEGORIES, PublicNotice } from '../types';
 import { getEffectiveNoticeStatus } from '../utils/cryptoAndValidation';
 
 export function SummaryPage() {
+  const {
+    account,
+    institutions,
+    activeInstitutionId,
+    activeInstitution,
+    setGuestInstitutionId,
+  } = useAccount();
+
   const [notices, setNotices] = useState<PublicNotice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!activeInstitutionId) {
+      setNotices([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     const unsub = subscribePublicNotices(
+      activeInstitutionId,
       (data) => {
         setNotices(data);
         setLoading(false);
@@ -23,7 +40,7 @@ export function SummaryPage() {
       }
     );
     return () => unsub();
-  }, []);
+  }, [activeInstitutionId]);
 
   const stats = useMemo(() => {
     let total = 0;
@@ -72,15 +89,68 @@ export function SummaryPage() {
     return { total, returned, open, archived, foundCount, lostCount, recoveryRate, categoryRows };
   }, [notices]);
 
+  if (account && !account.institutionId) {
+    return (
+      <div className="max-w-lg mx-auto bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center space-y-4">
+        <Building2 className="w-10 h-10 text-amber-600 mx-auto" />
+        <h1 className="font-display text-2xl font-bold text-slate-900">
+          Select Your Campus Institution
+        </h1>
+        <p className="text-sm text-slate-600">
+          Choose your institution in your Profile Dashboard to view impact metrics for your campus.
+        </p>
+        <Link
+          to="/account"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+        >
+          Open Profile Dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (!activeInstitutionId) {
+    return (
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+        <div className="space-y-1 text-center">
+          <Building2 className="w-8 h-8 text-emerald-700 mx-auto" />
+          <h1 className="font-display text-xl font-bold text-slate-900">
+            Select a Campus Institution
+          </h1>
+          <p className="text-sm text-slate-600">
+            Summary metrics are separated by campus institution. Select your campus below to view its stats.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {institutions.map((inst) => (
+            <button
+              key={inst.id}
+              type="button"
+              onClick={() => setGuestInstitutionId(inst.id)}
+              className="text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-700 hover:bg-emerald-50/40 transition-colors"
+            >
+              <span className="text-sm font-semibold text-slate-900">{inst.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div className="space-y-1">
+          <p className="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>{activeInstitution?.name}</span>
+          </p>
           <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
             Campus Impact Summary
           </h1>
           <p className="text-sm text-slate-600">
-            Live transparency metrics showing reported, returned, and open items across campus.
+            Live transparency metrics showing reported, returned, and open items at{' '}
+            <strong>{activeInstitution?.name}</strong>.
           </p>
         </div>
         <Link

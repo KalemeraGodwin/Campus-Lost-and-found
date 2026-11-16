@@ -51,9 +51,20 @@ export function TrackClaimPage() {
 
     try {
       const res = await trackClaimByCode(clean);
-      setBundle(res);
-      if (res) {
-        setResubmitAnswers(res.claim.answers.map((a) => a.answer));
+      if (
+        res?.notice &&
+        account?.institutionId &&
+        res.notice.institutionId !== account.institutionId
+      ) {
+        setError(
+          `This claim belongs to ${res.notice.institutionName}, while your account is registered under ${account.institutionName}.`
+        );
+        setBundle(null);
+      } else {
+        setBundle(res);
+        if (res) {
+          setResubmitAnswers(res.claim.answers.map((a) => a.answer));
+        }
       }
     } catch (err) {
       setError(extractFriendlyError(err));
@@ -61,7 +72,7 @@ export function TrackClaimPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account?.institutionId, account?.institutionName]);
 
   useEffect(() => {
     let active = true;
@@ -243,7 +254,10 @@ export function TrackClaimPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
           <div className="flex flex-wrap items-start justify-between gap-3 pb-4 border-b border-slate-200">
             <div className="space-y-1">
-              <p className="font-mono text-xs text-slate-500">{claimCode}</p>
+              <p className="font-mono text-xs text-slate-500">
+                {claimCode}
+                {bundle.notice ? ` · ${bundle.notice.institutionName}` : ''}
+              </p>
               <h2 className="font-display text-xl font-bold text-slate-900">
                 {bundle.notice ? bundle.notice.title : 'Campus Item'}
               </h2>

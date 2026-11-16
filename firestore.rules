@@ -40,18 +40,37 @@ service cloud.firestore {
     }
 
     // --- Validation Blueprints ---
-    function isValidNotice(data) {
-      return data.keys().hasAll([
-        'type', 'status', 'category', 'title', 'publicDescription',
-        'location', 'itemDate', 'photos', 'reporterFirstName',
-        'verificationPrompts', 'reporterPhoneHash', 'approvedClaimId',
-        'createdAt', 'updatedAt', 'closedAt'
-      ])
+    function isValidInstitution(data) {
+      return data.keys().hasAll(['name', 'locations', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'locations', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 100
+        && data.locations is list && data.locations.size() <= 40
+        && (data.locations.size() == 0 || (data.locations[0] is string && data.locations[0].size() >= 2 && data.locations[0].size() <= 120))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidNotice(data, requireInstitution) {
+      return data.keys().hasAll(
+        requireInstitution
+          ? [
+              'type', 'status', 'category', 'title', 'publicDescription',
+              'location', 'itemDate', 'photos', 'reporterFirstName',
+              'verificationPrompts', 'reporterPhoneHash', 'institutionId',
+              'institutionName', 'approvedClaimId', 'createdAt', 'updatedAt', 'closedAt'
+            ]
+          : [
+              'type', 'status', 'category', 'title', 'publicDescription',
+              'location', 'itemDate', 'photos', 'reporterFirstName',
+              'verificationPrompts', 'reporterPhoneHash', 'approvedClaimId',
+              'createdAt', 'updatedAt', 'closedAt'
+            ]
+      )
       && data.keys().hasOnly([
         'type', 'status', 'category', 'title', 'publicDescription',
         'location', 'itemDate', 'photos', 'reporterFirstName',
-        'verificationPrompts', 'reporterPhoneHash', 'approvedClaimId',
-        'createdAt', 'updatedAt', 'closedAt'
+        'verificationPrompts', 'reporterPhoneHash', 'institutionId',
+        'institutionName', 'approvedClaimId', 'createdAt', 'updatedAt', 'closedAt'
       ])
       && data.type in ['found', 'lost']
       && data.status in ['open', 'returned', 'archived', 'removed']
@@ -66,6 +85,8 @@ service cloud.firestore {
       && data.verificationPrompts is list && data.verificationPrompts.size() >= 1 && data.verificationPrompts.size() <= 5
       && data.verificationPrompts[0] is string && data.verificationPrompts[0].size() >= 3 && data.verificationPrompts[0].size() <= 240
       && isValidSha256(data.reporterPhoneHash)
+      && (!('institutionId' in data) || isValidId(data.institutionId))
+      && (!('institutionName' in data) || (data.institutionName is string && data.institutionName.size() >= 2 && data.institutionName.size() <= 100))
       && (data.approvedClaimId == null || isValidId(data.approvedClaimId))
       && data.createdAt is timestamp
       && data.updatedAt is timestamp
@@ -142,12 +163,18 @@ service cloud.firestore {
         && data.approvedAt is timestamp;
     }
 
-    function isValidStudentAccount(data) {
-      return data.keys().hasAll(['name', 'phoneNumber', 'pinHash', 'createdAt', 'updatedAt'])
-        && data.keys().hasOnly(['name', 'phoneNumber', 'pinHash', 'previousPhoneHashes', 'createdAt', 'updatedAt'])
+    function isValidStudentAccount(data, requireInstitution) {
+      return data.keys().hasAll(
+        requireInstitution
+          ? ['name', 'phoneNumber', 'pinHash', 'institutionId', 'institutionName', 'createdAt', 'updatedAt']
+          : ['name', 'phoneNumber', 'pinHash', 'createdAt', 'updatedAt']
+      )
+        && data.keys().hasOnly(['name', 'phoneNumber', 'pinHash', 'institutionId', 'institutionName', 'previousPhoneHashes', 'createdAt', 'updatedAt'])
         && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
         && isValidPhone(data.phoneNumber)
         && isValidSha256(data.pinHash)
+        && (!('institutionId' in data) || isValidId(data.institutionId))
+        && (!('institutionName' in data) || (data.institutionName is string && data.institutionName.size() >= 2 && data.institutionName.size() <= 100))
         && (!('previousPhoneHashes' in data) || (
           data.previousPhoneHashes is list
           && data.previousPhoneHashes.size() <= 10
@@ -179,8 +206,9 @@ service cloud.firestore {
 
     function isValidNotification(data) {
       return data.keys().hasAll(['recipientPhoneHash', 'kind', 'noticeId', 'claimId', 'title', 'message', 'read', 'createdAt'])
-        && data.keys().hasOnly(['recipientPhoneHash', 'kind', 'noticeId', 'claimId', 'title', 'message', 'read', 'createdAt'])
+        && data.keys().hasOnly(['recipientPhoneHash', 'institutionId', 'kind', 'noticeId', 'claimId', 'title', 'message', 'read', 'createdAt'])
         && isValidSha256(data.recipientPhoneHash)
+        && (!('institutionId' in data) || isValidId(data.institutionId))
         && data.kind in ['new_claim', 'claim_resubmitted', 'claim_approved', 'claim_rejected']
         && isValidId(data.noticeId)
         && isValidId(data.claimId)
@@ -211,21 +239,42 @@ service cloud.firestore {
 
     // --- Collection Rules ---
 
+    match /institutions/{institutionId} {
+      allow get: if isValidId(institutionId);
+      allow list: if isAdmin() || existing().name >= '';
+      allow create: if isValidId(institutionId)
+        && isValidInstitution(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (isAdmin() || institutionId in ['inst_makerere', 'inst_kyambogo']);
+      allow update: if isAdmin()
+        && isValidId(institutionId)
+        && isValidInstitution(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin();
+    }
+
     match /notices/{noticeId} {
       allow get: if isValidId(noticeId) && (existing().status in ['open', 'returned', 'archived'] || isAdmin());
       allow list: if existing().status in ['open', 'returned', 'archived'] || isAdmin();
       allow create: if isValidId(noticeId)
-        && isValidNotice(incoming())
+        && isValidNotice(incoming(), true)
         && incoming().status == 'open'
         && incoming().approvedClaimId == null
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
-        && incoming().closedAt == null;
+        && incoming().closedAt == null
+        && existsAfter(/databases/$(database)/documents/institutions/$(incoming().institutionId));
       allow update: if isValidId(noticeId)
-        && isValidNotice(incoming())
+        && isValidNotice(incoming(), false)
         && incoming().type == existing().type
         && incoming().createdAt == existing().createdAt
         && incoming().reporterPhoneHash == existing().reporterPhoneHash
+        && (!('institutionId' in existing()) || (
+          incoming().institutionId == existing().institutionId
+          && incoming().institutionName == existing().institutionName
+        ))
         && incoming().updatedAt == request.time
         && (existing().status != 'removed' || isAdmin())
         && (
@@ -279,7 +328,7 @@ service cloud.firestore {
 
     match /claims/{claimId} {
       allow get: if isValidId(claimId);
-      allow list: if isAdmin() || (existing().noticeId is string && existing().claimantPhoneHash is string);
+      allow list: if isAdmin() || existing().noticeId >= '' || existing().claimantPhoneHash >= '';
       allow create: if isValidId(claimId)
         && isValidClaim(incoming(), false)
         && incoming().status == 'pending'
@@ -355,15 +404,17 @@ service cloud.firestore {
       allow get: if isValidSha256(phoneHash) || isAdmin();
       allow list: if isAdmin();
       allow create: if isValidSha256(phoneHash)
-        && isValidStudentAccount(incoming())
+        && isValidStudentAccount(incoming(), true)
         && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time;
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/institutions/$(incoming().institutionId));
       allow update: if isValidSha256(phoneHash)
-        && isValidStudentAccount(incoming())
+        && isValidStudentAccount(incoming(), false)
         && incoming().phoneNumber == existing().phoneNumber
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'pinHash', 'updatedAt']);
+        && (!('institutionId' in incoming()) || exists(/databases/$(database)/documents/institutions/$(incoming().institutionId)))
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'pinHash', 'institutionId', 'institutionName', 'updatedAt']);
       allow delete: if isAdmin() || isValidSha256(phoneHash);
     }
 
@@ -403,6 +454,7 @@ service cloud.firestore {
       allow update: if isValidId(notificationId)
         && isValidNotification(incoming())
         && incoming().recipientPhoneHash == existing().recipientPhoneHash
+        && (!('institutionId' in existing()) || incoming().institutionId == existing().institutionId)
         && incoming().kind == existing().kind
         && incoming().noticeId == existing().noticeId
         && incoming().claimId == existing().claimId

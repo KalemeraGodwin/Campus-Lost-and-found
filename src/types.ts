@@ -30,6 +30,14 @@ export const CAMPUS_LOCATIONS = [
   'Campus Security Desk',
 ] as const;
 
+export interface CampusInstitution {
+  id: string;
+  name: string;
+  locations: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface VerificationQuestion {
   question: string;
   expectedAnswer: string;
@@ -43,6 +51,8 @@ export interface PublicNotice {
   title: string;
   publicDescription: string;
   location: string;
+  institutionId: string;
+  institutionName: string;
   itemDate: string;
   photos: string[];
   reporterFirstName: string;
@@ -95,12 +105,15 @@ export interface StudentAccountSession {
   phoneNumber: string;
   phoneHash: string;
   accessKey: string;
+  institutionId: string;
+  institutionName: string;
   previousPhoneHashes?: string[];
 }
 
 export interface AppNotification {
   id: string;
   recipientPhoneHash: string;
+  institutionId?: string;
   kind: NotificationKind;
   noticeId: string;
   claimId: string;

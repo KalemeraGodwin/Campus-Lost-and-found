@@ -9,42 +9,71 @@ import {
   useState,
 } from 'react';
 import {
+  extractFriendlyError,
   fetchAccountVault,
+  fetchInstitutions,
   markAllNotificationsRead,
   markNotificationRead,
   registerStudentAccount,
   saveClaimToAccountVault,
   saveNoticeToAccountVault,
+  seedCampusInstitutionsIfEmpty,
   signInStudentAccount,
   subscribeAccountNotifications,
+  subscribeInstitutions,
   updateStudentAccountProfile,
 } from '../services/firebase';
 import {
   AppNotification,
+  CampusInstitution,
   LocalManagedNotice,
   LocalTrackedClaim,
   StudentAccountSession,
 } from '../types';
 import {
   clearAccountSession,
+  clearGuestInstitutionId,
   clearManagedNotices,
   getSavedAccountSession,
+  getSavedGuestInstitutionId,
   getSavedManagedNotices,
   getSavedTrackedClaims,
   saveAccountSession,
+  saveGuestInstitutionId,
   saveManagedNotice,
   saveTrackedClaim,
 } from '../utils/localStorageStore';
 
 interface AccountContextValue {
   account: StudentAccountSession | null;
+  institutions: CampusInstitution[];
+  institutionsLoading: boolean;
+  institutionsError: string | null;
+  refreshInstitutions: () => Promise<void>;
+  upsertInstitutionLocal: (inst: CampusInstitution) => void;
+  removeInstitutionLocal: (institutionId: string) => void;
+  guestInstitutionId: string | null;
+  setGuestInstitutionId: (id: string | null) => void;
+  activeInstitutionId: string | null;
+  activeInstitution: CampusInstitution | null;
   notifications: AppNotification[];
   unreadCount: number;
   activeToast: AppNotification | null;
   browserNotifPermission: NotificationPermission | 'unsupported';
-  registerAccount: (params: { name: string; phoneNumber: string; pin: string }) => Promise<StudentAccountSession>;
+  registerAccount: (params: {
+    name: string;
+    phoneNumber: string;
+    pin: string;
+    institutionId: string;
+    institutionName: string;
+  }) => Promise<StudentAccountSession>;
   loginAccount: (params: { phoneNumber: string; pin: string }) => Promise<StudentAccountSession>;
-  updateProfile: (params: { name: string; phoneNumber: string }) => Promise<StudentAccountSession>;
+  updateProfile: (params: {
+    name: string;
+    phoneNumber: string;
+    institutionId: string;
+    institutionName: string;
+  }) => Promise<StudentAccountSession>;
   logoutAccount: () => void;
   saveNoticeToAccount: (entry: LocalManagedNotice, overrideAccessKey?: string) => Promise<void>;
   saveClaimToAccount: (entry: LocalTrackedClaim, overrideAccessKey?: string) => Promise<void>;
@@ -97,6 +126,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   const [account, setAccount] = useState<StudentAccountSession | null>(() =>
     getSavedAccountSession()
   );
+  const [institutions, setInstitutions] = useState<CampusInstitution[]>([]);
+  const [institutionsLoading, setInstitutionsLoading] = useState(true);
+  const [institutionsError, setInstitutionsError] = useState<string | null>(null);
+  const [guestInstitutionId, setGuestInstitutionIdState] = useState<string | null>(() =>
+    getSavedGuestInstitutionId()
+  );
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [activeToast, setActiveToast] = useState<AppNotification | null>(null);
   const [browserNotifPermission, setBrowserNotifPermission] = useState<
@@ -110,6 +145,87 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const initialSnapshotDoneRef = useRef(false);
   const knownIdsRef = useRef<Set<string>>(new Set());
+
+  const refreshInstitutions = useCallback(async () => {
+    try {
+      const list = await fetchInstitutions();
+      setInstitutions(list);
+      setInstitutionsError(null);
+    } catch (err) {
+      setInstitutionsError(extractFriendlyError(err));
+    } finally {
+      setInstitutionsLoading(false);
+    }
+  }, []);
+
+  const upsertInstitutionLocal = useCallback((inst: CampusInstitution) => {
+    setInstitutions((prev) => {
+      const exists = prev.some((item) => item.id === inst.id);
+      const next = exists
+        ? prev.map((item) => (item.id === inst.id ? inst : item))
+        : [...prev, inst];
+      return next.sort((a, b) => a.name.localeCompare(b.name));
+    });
+    setInstitutionsError(null);
+    setInstitutionsLoading(false);
+  }, []);
+
+  const removeInstitutionLocal = useCallback((institutionId: string) => {
+    setInstitutions((prev) => prev.filter((item) => item.id !== institutionId));
+  }, []);
+
+  useEffect(() => {
+    seedCampusInstitutionsIfEmpty();
+    const unsub = subscribeInstitutions(
+      (list) => {
+        setInstitutions(list);
+        setInstitutionsError(null);
+        setInstitutionsLoading(false);
+      },
+      (err) => {
+        setInstitutionsError(extractFriendlyError(err));
+        setInstitutionsLoading(false);
+      }
+    );
+    return () => unsub();
+  }, []);
+
+  const setGuestInstitutionId = useCallback((id: string | null) => {
+    if (id && id.trim()) {
+      saveGuestInstitutionId(id.trim());
+      setGuestInstitutionIdState(id.trim());
+    } else {
+      clearGuestInstitutionId();
+      setGuestInstitutionIdState(null);
+    }
+  }, []);
+
+  const activeInstitutionId = useMemo(() => {
+    if (account) {
+      return account.institutionId || null;
+    }
+    if (guestInstitutionId && institutions.length > 0) {
+      const exists = institutions.some((inst) => inst.id === guestInstitutionId);
+      return exists ? guestInstitutionId : null;
+    }
+    return guestInstitutionId;
+  }, [account, guestInstitutionId, institutions]);
+
+  const activeInstitution = useMemo<CampusInstitution | null>(() => {
+    if (!activeInstitutionId) return null;
+    const matched = institutions.find((inst) => inst.id === activeInstitutionId);
+    if (matched) return matched;
+    if (account && account.institutionId === activeInstitutionId) {
+      return {
+        id: account.institutionId,
+        name: account.institutionName || 'Your Institution',
+        locations: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+    return null;
+  }, [activeInstitutionId, institutions, account]);
 
   const syncVault = useCallback(async (accessKey: string) => {
     try {
@@ -149,13 +265,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
     syncVault(account.accessKey);
 
     const hashesToWatch = [account.phoneHash, ...(account.previousPhoneHashes || [])];
-    const unsub = subscribeAccountNotifications(hashesToWatch, (items) => {
+    const unsub = subscribeAccountNotifications(hashesToWatch, (rawItems) => {
+      const items = account.institutionId
+        ? rawItems.filter((n) => !n.institutionId || n.institutionId === account.institutionId)
+        : rawItems;
+
       setNotifications(items);
 
       if (!initialSnapshotDoneRef.current) {
         initialSnapshotDoneRef.current = true;
         items.forEach((i) => knownIdsRef.current.add(i.id));
-        // Surface the most recent unread item as an initial toast if very recent (< 30s)
         const freshUnread = items.find(
           (i) => !i.read && Date.now() - i.createdAt.getTime() < 30000
         );
@@ -188,7 +307,13 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [activeToast]);
 
   const registerAccount = useCallback(
-    async (params: { name: string; phoneNumber: string; pin: string }) => {
+    async (params: {
+      name: string;
+      phoneNumber: string;
+      pin: string;
+      institutionId: string;
+      institutionName: string;
+    }) => {
       const session = await registerStudentAccount(params);
       saveAccountSession(session);
       setAccount(session);
@@ -210,7 +335,12 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   );
 
   const updateProfile = useCallback(
-    async (params: { name: string; phoneNumber: string }) => {
+    async (params: {
+      name: string;
+      phoneNumber: string;
+      institutionId: string;
+      institutionName: string;
+    }) => {
       if (!account) {
         throw new Error('You must be signed in to update your profile.');
       }
@@ -218,6 +348,8 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         currentSession: account,
         newName: params.name,
         newPhoneNumber: params.phoneNumber,
+        newInstitutionId: params.institutionId,
+        newInstitutionName: params.institutionName,
       });
       saveAccountSession(updated);
       setAccount(updated);
@@ -287,6 +419,16 @@ export function AccountProvider({ children }: { children: ReactNode }) {
 
   const value: AccountContextValue = {
     account,
+    institutions,
+    institutionsLoading,
+    institutionsError,
+    refreshInstitutions,
+    upsertInstitutionLocal,
+    removeInstitutionLocal,
+    guestInstitutionId,
+    setGuestInstitutionId,
+    activeInstitutionId,
+    activeInstitution,
     notifications,
     unreadCount,
     activeToast,

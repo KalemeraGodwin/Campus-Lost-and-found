@@ -1,8 +1,10 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AlertTriangle,
   Bell,
   BellRing,
+  Building2,
   CheckCheck,
   Edit3,
   FolderKanban,
@@ -19,6 +21,8 @@ import { formatShortDate, formatUgPhoneDisplay, normalizeUgPhone } from '../util
 export function AccountPage() {
   const {
     account,
+    institutions,
+    institutionsLoading,
     notifications,
     unreadCount,
     browserNotifPermission,
@@ -35,6 +39,7 @@ export function AccountPage() {
   const [name, setName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('+256');
   const [pin, setPin] = useState('');
+  const [institutionId, setInstitutionId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,9 +47,16 @@ export function AccountPage() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editInstitutionId, setEditInstitutionId] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!institutionId && institutions.length > 0) {
+      setInstitutionId(institutions[0].id);
+    }
+  }, [institutions, institutionId]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -52,7 +64,17 @@ export function AccountPage() {
     setSubmitting(true);
     try {
       if (mode === 'register') {
-        await registerAccount({ name, phoneNumber, pin });
+        const selectedInst = institutions.find((i) => i.id === institutionId);
+        if (!selectedInst) {
+          throw new Error('Please select your campus institution.');
+        }
+        await registerAccount({
+          name,
+          phoneNumber,
+          pin,
+          institutionId: selectedInst.id,
+          institutionName: selectedInst.name,
+        });
       } else {
         await loginAccount({ phoneNumber, pin });
       }
@@ -68,6 +90,7 @@ export function AccountPage() {
     if (!account) return;
     setEditName(account.name);
     setEditPhone(account.phoneNumber);
+    setEditInstitutionId(account.institutionId || institutions[0]?.id || '');
     setProfileError(null);
     setProfileSuccess(null);
     setEditingProfile(true);
@@ -79,13 +102,19 @@ export function AccountPage() {
     setProfileSuccess(null);
     setSavingProfile(true);
     try {
+      const selectedInst = institutions.find((i) => i.id === editInstitutionId);
+      if (!selectedInst) {
+        throw new Error('Please select your campus institution.');
+      }
       const updated = await updateProfile({
         name: editName,
         phoneNumber: editPhone,
+        institutionId: selectedInst.id,
+        institutionName: selectedInst.name,
       });
       setEditingProfile(false);
       setProfileSuccess(
-        `Profile updated. Use ${formatUgPhoneDisplay(updated.phoneNumber)} with your PIN the next time you log in.`
+        `Profile updated (${updated.institutionName}). Use ${formatUgPhoneDisplay(updated.phoneNumber)} with your PIN the next time you log in.`
       );
     } catch (err) {
       setProfileError(extractFriendlyError(err));
@@ -102,7 +131,7 @@ export function AccountPage() {
             Account &amp; Profile Dashboard
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Create an account or sign in with your Name and Ugandan WhatsApp number to report items anytime, manage your profile, and receive live claim notifications.
+            Create an account under your campus institution or sign in to report items anytime, manage your WhatsApp number, and receive institution-specific notifications.
           </p>
         </div>
 
@@ -140,22 +169,53 @@ export function AccountPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
-              <div className="space-y-1.5">
-                <label htmlFor="acc-name" className="block text-xs font-semibold text-slate-700">
-                  Full Name
-                </label>
-                <input
-                  id="acc-name"
-                  type="text"
-                  required
-                  minLength={2}
-                  maxLength={80}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Grace Namukasa"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <label htmlFor="acc-name" className="block text-xs font-semibold text-slate-700">
+                    Full Name
+                  </label>
+                  <input
+                    id="acc-name"
+                    type="text"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Grace Namukasa"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="acc-institution" className="block text-xs font-semibold text-slate-700">
+                    Campus Institution
+                  </label>
+                  <select
+                    id="acc-institution"
+                    required
+                    value={institutionId}
+                    onChange={(e) => setInstitutionId(e.target.value)}
+                    disabled={institutionsLoading || institutions.length === 0}
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  >
+                    {institutions.length === 0 ? (
+                      <option value="">
+                        {institutionsLoading ? 'Loading institutions...' : 'No institutions configured by Admin yet'}
+                      </option>
+                    ) : (
+                      institutions.map((inst) => (
+                        <option key={inst.id} value={inst.id}>
+                          {inst.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <p className="text-xs text-slate-500">
+                    You will only receive notices and alerts attached to your selected institution.
+                  </p>
+                </div>
+              </>
             )}
 
             <div className="space-y-1.5">
@@ -207,7 +267,7 @@ export function AccountPage() {
 
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || (mode === 'register' && institutions.length === 0)}
               className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
             >
               {submitting
@@ -233,6 +293,31 @@ export function AccountPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      {!account.institutionId && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <p className="text-xs sm:text-sm font-semibold text-amber-900">
+                Select your campus institution to continue
+              </p>
+              <p className="text-xs text-amber-800">
+                Notices and alerts are scoped by campus institution. Choose your institution in your profile settings below.
+              </p>
+            </div>
+          </div>
+          {!editingProfile && (
+            <button
+              type="button"
+              onClick={startEditProfile}
+              className="min-h-[38px] px-4 py-2 rounded-xl bg-amber-900 text-white text-xs font-semibold hover:bg-amber-950 shrink-0"
+            >
+              Choose Institution
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Signed-in Profile Dashboard Card */}
       <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -244,9 +329,18 @@ export function AccountPage() {
             <h1 className="font-display text-2xl font-bold text-slate-900 break-words">
               {account.name}
             </h1>
-            <p className="font-mono text-xs sm:text-sm text-slate-600">
-              {formatUgPhoneDisplay(account.phoneNumber)}
-            </p>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600">
+              <span className="font-mono">{formatUgPhoneDisplay(account.phoneNumber)}</span>
+              {account.institutionName && (
+                <>
+                  <span className="text-slate-300">·</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-800">
+                    <Building2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>{account.institutionName}</span>
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
@@ -257,7 +351,7 @@ export function AccountPage() {
                 className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
               >
                 <Edit3 className="w-4 h-4" />
-                <span>Edit WhatsApp / Name</span>
+                <span>Edit Profile</span>
               </button>
             )}
 
@@ -305,14 +399,14 @@ export function AccountPage() {
           >
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-slate-900">
-                Edit Profile &amp; WhatsApp Number
+                Edit Profile, WhatsApp Number &amp; Institution
               </h2>
               <p className="text-xs text-slate-600">
                 Updating your WhatsApp number here updates your login number for future sign-ins and keeps your posted notices and alerts linked.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <label htmlFor="edit-profile-name" className="block text-xs font-semibold text-slate-700">
                   Full Name
@@ -344,6 +438,25 @@ export function AccountPage() {
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
                 <p className="text-xs text-slate-500">Format: +256 7XX XXXXXX</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor="edit-profile-institution" className="block text-xs font-semibold text-slate-700">
+                  Campus Institution
+                </label>
+                <select
+                  id="edit-profile-institution"
+                  required
+                  value={editInstitutionId}
+                  onChange={(e) => setEditInstitutionId(e.target.value)}
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                >
+                  {institutions.map((inst) => (
+                    <option key={inst.id} value={inst.id}>
+                      {inst.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

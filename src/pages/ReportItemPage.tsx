@@ -1,7 +1,9 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  AlertTriangle,
   BellRing,
+  Building2,
   Check,
   Copy,
   ImagePlus,
@@ -13,18 +15,27 @@ import {
 } from 'lucide-react';
 import { useAccount } from '../context/AccountContext';
 import { createNotice, extractFriendlyError } from '../services/firebase';
-import { CAMPUS_LOCATIONS, CATEGORIES, NoticeType, VerificationQuestion } from '../types';
+import { CATEGORIES, NoticeType, VerificationQuestion } from '../types';
 import { formatUgPhoneDisplay, isValidUgPhone, normalizeUgPhone } from '../utils/cryptoAndValidation';
 import { saveManagedNotice } from '../utils/localStorageStore';
 
 export function ReportItemPage() {
-  const { account, registerAccount, loginAccount, saveNoticeToAccount } = useAccount();
+  const {
+    account,
+    institutions,
+    institutionsLoading,
+    activeInstitution,
+    registerAccount,
+    loginAccount,
+    saveNoticeToAccount,
+  } = useAccount();
 
   // Account creation / sign-in gate state (when not signed in)
   const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
   const [authName, setAuthName] = useState('');
   const [authPhone, setAuthPhone] = useState('+256');
   const [authPin, setAuthPin] = useState('');
+  const [authInstitutionId, setAuthInstitutionId] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -52,8 +63,15 @@ export function ReportItemPage() {
     noticeId: string;
     managementToken: string;
     title: string;
+    institutionName: string;
   } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  useEffect(() => {
+    if (!authInstitutionId && institutions.length > 0) {
+      setAuthInstitutionId(institutions[0].id);
+    }
+  }, [institutions, authInstitutionId]);
 
   useEffect(() => {
     if (account) {
@@ -62,16 +80,28 @@ export function ReportItemPage() {
     }
   }, [account]);
 
+  const institutionLocations = useMemo(() => {
+    if (!account?.institutionId) return [];
+    const matched = institutions.find((i) => i.id === account.institutionId) || activeInstitution;
+    return matched?.locations || [];
+  }, [account?.institutionId, institutions, activeInstitution]);
+
   async function handleAccountGateSubmit(e: FormEvent) {
     e.preventDefault();
     setAuthError(null);
     setAuthSubmitting(true);
     try {
       if (authMode === 'register') {
+        const selectedInst = institutions.find((i) => i.id === authInstitutionId);
+        if (!selectedInst) {
+          throw new Error('Please select your campus institution.');
+        }
         await registerAccount({
           name: authName,
           phoneNumber: authPhone,
           pin: authPin,
+          institutionId: selectedInst.id,
+          institutionName: selectedInst.name,
         });
       } else {
         await loginAccount({
@@ -124,6 +154,11 @@ export function ReportItemPage() {
     if (!account) return;
     setError(null);
 
+    if (!account.institutionId || !account.institutionName) {
+      setError('Please select your campus institution in your Profile Dashboard first.');
+      return;
+    }
+
     const normalizedPhone = normalizeUgPhone(reporterWhatsApp);
     if (!isValidUgPhone(normalizedPhone)) {
       setError('Enter a valid Ugandan WhatsApp number starting with +256 followed by 9 digits.');
@@ -154,6 +189,8 @@ export function ReportItemPage() {
         title,
         publicDescription,
         location,
+        institutionId: account.institutionId,
+        institutionName: account.institutionName,
         itemDate,
         photoFiles,
         verificationQuestions: validQuestions,
@@ -175,6 +212,7 @@ export function ReportItemPage() {
         noticeId: result.noticeId,
         managementToken: result.managementToken,
         title: result.notice.title,
+        institutionName: account.institutionName,
       });
     } catch (err) {
       setError(extractFriendlyError(err));
@@ -193,7 +231,7 @@ export function ReportItemPage() {
             Create an Account to Report an Item
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Create your account once with your Name and Ugandan WhatsApp number. Once signed in, you can report lost or found items anytime and get instant alerts when someone claims them.
+            Sign up under your campus institution with your Name and Ugandan WhatsApp number. Once signed in, you can report items anytime and receive alerts for your campus.
           </p>
         </div>
 
@@ -231,22 +269,50 @@ export function ReportItemPage() {
 
           <form onSubmit={handleAccountGateSubmit} className="space-y-4">
             {authMode === 'register' && (
-              <div className="space-y-1.5">
-                <label htmlFor="gate-name" className="block text-xs font-semibold text-slate-700">
-                  Full Name
-                </label>
-                <input
-                  id="gate-name"
-                  type="text"
-                  required
-                  minLength={2}
-                  maxLength={80}
-                  value={authName}
-                  onChange={(e) => setAuthName(e.target.value)}
-                  placeholder="e.g. Grace Namukasa"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-                />
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <label htmlFor="gate-name" className="block text-xs font-semibold text-slate-700">
+                    Full Name
+                  </label>
+                  <input
+                    id="gate-name"
+                    type="text"
+                    required
+                    minLength={2}
+                    maxLength={80}
+                    value={authName}
+                    onChange={(e) => setAuthName(e.target.value)}
+                    placeholder="e.g. Grace Namukasa"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="gate-institution" className="block text-xs font-semibold text-slate-700">
+                    Campus Institution
+                  </label>
+                  <select
+                    id="gate-institution"
+                    required
+                    value={authInstitutionId}
+                    onChange={(e) => setAuthInstitutionId(e.target.value)}
+                    disabled={institutionsLoading || institutions.length === 0}
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  >
+                    {institutions.length === 0 ? (
+                      <option value="">
+                        {institutionsLoading ? 'Loading institutions...' : 'No institutions configured by Admin yet'}
+                      </option>
+                    ) : (
+                      institutions.map((inst) => (
+                        <option key={inst.id} value={inst.id}>
+                          {inst.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </>
             )}
 
             <div className="space-y-1.5">
@@ -297,7 +363,7 @@ export function ReportItemPage() {
 
             <button
               type="submit"
-              disabled={authSubmitting}
+              disabled={authSubmitting || (authMode === 'register' && institutions.length === 0)}
               className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
             >
               {authSubmitting
@@ -313,10 +379,31 @@ export function ReportItemPage() {
           <div className="pt-3 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-500">
             <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
             <span>
-              You can edit your WhatsApp number or log out anytime from your Profile Dashboard.
+              You can edit your WhatsApp number, institution, or log out anytime from your Profile Dashboard.
             </span>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // Legacy account guard: prompt to select institution before reporting
+  if (!account.institutionId) {
+    return (
+      <div className="max-w-md mx-auto bg-white rounded-2xl border border-amber-200 p-6 space-y-4 text-center">
+        <AlertTriangle className="w-10 h-10 text-amber-600 mx-auto" />
+        <h1 className="font-display text-xl font-bold text-slate-900">
+          Select Your Campus Institution
+        </h1>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Your account does not have a campus institution selected yet. Choose your institution in your Profile Dashboard before posting a notice.
+        </p>
+        <Link
+          to="/account"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+        >
+          Open Profile Dashboard
+        </Link>
       </div>
     );
   }
@@ -327,12 +414,15 @@ export function ReportItemPage() {
     return (
       <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 space-y-6">
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-emerald-700">Notice Published</p>
+          <p className="text-xs font-semibold text-emerald-700">
+            Notice Published · {createdResult.institutionName}
+          </p>
           <h1 className="font-display text-2xl font-bold text-slate-900">
             Your notice is live on CampusTrace
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Your WhatsApp number and expected answers remain hidden. You can review incoming claims from your account anytime or copy your Private Management Link below.
+            Your WhatsApp number and expected answers remain hidden. Only users under{' '}
+            <strong>{createdResult.institutionName}</strong> can view and respond to this notice.
           </p>
         </div>
 
@@ -401,15 +491,20 @@ export function ReportItemPage() {
           Report an Item
         </h1>
         <p className="text-sm text-slate-600">
-          Your WhatsApp number stays strictly private until you approve a verified claim.
+          Your notice will be published strictly to <strong>{account.institutionName}</strong>.
         </p>
       </div>
 
       <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-900">
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
           <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
           <span className="truncate">
             Reporting as <strong>{account.name}</strong> ({formatUgPhoneDisplay(account.phoneNumber)})
+          </span>
+          <span className="text-emerald-400">·</span>
+          <span className="inline-flex items-center gap-1 font-semibold">
+            <Building2 className="w-3.5 h-3.5" />
+            <span>{account.institutionName}</span>
           </span>
         </div>
         <Link
@@ -505,25 +600,41 @@ export function ReportItemPage() {
 
         <div className="space-y-1.5">
           <label htmlFor="item-location" className="block text-xs font-semibold text-slate-700">
-            Campus Location
+            Campus Location ({account.institutionName})
           </label>
-          <input
-            id="item-location"
-            type="text"
-            list="campus-locations-list"
-            required
-            minLength={2}
-            maxLength={120}
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="e.g. Main Library Level 2"
-            className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-          />
-          <datalist id="campus-locations-list">
-            {CAMPUS_LOCATIONS.map((loc) => (
-              <option key={loc} value={loc} />
-            ))}
-          </datalist>
+          {institutionLocations.length > 0 ? (
+            <select
+              id="item-location"
+              required
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            >
+              <option value="">Select a campus location...</option>
+              {institutionLocations.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <>
+              <input
+                id="item-location"
+                type="text"
+                required
+                minLength={2}
+                maxLength={120}
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g. Main Library Level 2"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              />
+              <p className="text-xs text-slate-500">
+                No preset campus locations configured yet by Admin for {account.institutionName}.
+              </p>
+            </>
+          )}
         </div>
 
         <div className="space-y-1.5">
