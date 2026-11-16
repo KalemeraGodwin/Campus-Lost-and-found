@@ -106,7 +106,7 @@ export function SummaryPage() {
       ) : (
         <>
           {/* KPI Summary Strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 min-[400px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-2">
               <div className="flex items-center justify-between text-xs font-medium text-slate-500">
                 <span>Total Reported</span>
@@ -187,7 +187,7 @@ export function SummaryPage() {
 
                 return (
                   <div key={row.category} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <div className="flex flex-col min-[420px]:flex-row min-[420px]:items-center justify-between gap-0.5 text-xs sm:text-sm">
                       <span className="font-semibold text-slate-800">{row.category}</span>
                       <span className="text-slate-500 tabular-nums">
                         {row.total} total ({row.returned} returned · {row.open} open)

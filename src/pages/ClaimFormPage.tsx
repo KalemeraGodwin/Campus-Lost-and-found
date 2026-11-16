@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Copy, FileText, Lock, Trash2, UploadCloud } from 'lucide-react';
+import { ArrowLeft, BellRing, Check, Copy, FileText, Lock, Trash2, UploadCloud, UserCheck } from 'lucide-react';
+import { useAccount } from '../context/AccountContext';
 import { extractFriendlyError, getNoticeById, submitClaim } from '../services/firebase';
 import { PublicNotice } from '../types';
 import { getEffectiveNoticeStatus, isValidUgPhone, normalizeUgPhone } from '../utils/cryptoAndValidation';
@@ -8,19 +9,33 @@ import { saveTrackedClaim } from '../utils/localStorageStore';
 
 export function ClaimFormPage() {
   const { id } = useParams<{ id: string }>();
+  const { account, registerAccount, saveClaimToAccount } = useAccount();
   const [notice, setNotice] = useState<PublicNotice | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [claimantName, setClaimantName] = useState('');
-  const [claimantWhatsApp, setClaimantWhatsApp] = useState('+256');
+  const [claimantName, setClaimantName] = useState(() => account?.name || '');
+  const [claimantWhatsApp, setClaimantWhatsApp] = useState(() => account?.phoneNumber || '+256');
+  const [createFollowUpAccount, setCreateFollowUpAccount] = useState(false);
+  const [accountPin, setAccountPin] = useState('');
   const [answers, setAnswers] = useState<string[]>([]);
   const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const [claimResult, setClaimResult] = useState<{ claimCode: string; claimId: string } | null>(null);
+  const [claimResult, setClaimResult] = useState<{
+    claimCode: string;
+    claimId: string;
+    accountNotice?: string;
+  } | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+
+  useEffect(() => {
+    if (account) {
+      setClaimantName((prev) => prev || account.name);
+      setClaimantWhatsApp((prev) => (prev === '+256' || !prev ? account.phoneNumber : prev));
+    }
+  }, [account]);
 
   useEffect(() => {
     if (!id) return;
@@ -69,6 +84,11 @@ export function ClaimFormPage() {
       return;
     }
 
+    if (!account && createFollowUpAccount && accountPin.trim().length < 4) {
+      setSubmitError('Enter a 4–6 digit PIN to create your follow-up account.');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const formattedAnswers = notice.verificationPrompts.map((question, idx) => ({
@@ -84,15 +104,34 @@ export function ClaimFormPage() {
         evidenceFiles,
       });
 
-      saveTrackedClaim({
+      const localClaim = {
         claimCode: res.claimCode,
         claimId: res.claimId,
         noticeId: notice.id,
         noticeTitle: notice.title,
         createdAt: new Date().toISOString(),
-      });
+      };
+      saveTrackedClaim(localClaim);
 
-      setClaimResult(res);
+      let accountNotice: string | undefined;
+      if (account) {
+        await saveClaimToAccount(localClaim, account.accessKey).catch(() => {});
+        accountNotice = `Linked to ${account.name}. We will notify you as soon as the reporter reviews your claim.`;
+      } else if (createFollowUpAccount) {
+        try {
+          const newSession = await registerAccount({
+            name: claimantName,
+            phoneNumber: normalizedPhone,
+            pin: accountPin.trim(),
+          });
+          await saveClaimToAccount(localClaim, newSession.accessKey).catch(() => {});
+          accountNotice = `Follow-up account created for ${newSession.name}. You will get an alert when your claim is reviewed.`;
+        } catch (accErr) {
+          accountNotice = `Claim submitted! Account note: ${extractFriendlyError(accErr)} You can sign in on the Account page to track updates.`;
+        }
+      }
+
+      setClaimResult({ ...res, accountNotice });
     } catch (err) {
       setSubmitError(extractFriendlyError(err));
     } finally {
@@ -134,9 +173,31 @@ export function ClaimFormPage() {
           </p>
         </div>
 
+        {claimResult.accountNotice ? (
+          <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 flex items-start gap-2.5 text-xs sm:text-sm text-emerald-900">
+            <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <span>{claimResult.accountNotice}</span>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <p className="text-xs font-semibold text-amber-900">Get notified on approval</p>
+              <p className="text-xs text-amber-800">
+                Create or sign into a Follow-Up Account to get live alerts when the reporter responds.
+              </p>
+            </div>
+            <Link
+              to="/account"
+              className="min-h-[38px] px-3.5 py-2 rounded-xl bg-amber-900 text-white text-xs font-semibold hover:bg-amber-950 inline-flex items-center justify-center shrink-0"
+            >
+              Enable Alerts
+            </Link>
+          </div>
+        )}
+
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-5 text-center space-y-3">
           <span className="block text-xs font-medium text-slate-500">Your Claim Code</span>
-          <p className="font-mono text-2xl sm:text-3xl font-bold tracking-wider text-slate-900 select-all">
+          <p className="font-mono text-2xl sm:text-3xl font-bold tracking-wider text-slate-900 select-all break-all">
             {claimResult.claimCode}
           </p>
           <button
@@ -156,13 +217,13 @@ export function ClaimFormPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             to={`/track-claim?code=${claimResult.claimCode}`}
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center"
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center text-center"
           >
             Track Claim Status
           </Link>
           <Link
             to="/"
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center"
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center text-center"
           >
             Back to Browse
           </Link>
@@ -193,7 +254,16 @@ export function ClaimFormPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-6">
+      {account && (
+        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex items-center gap-2.5 text-xs sm:text-sm text-emerald-900">
+          <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+          <span>
+            Signed in as <strong>{account.name}</strong>. Your claim will be saved to your Follow-Up Account.
+          </span>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-7 space-y-6">
         {/* Claimant Info */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
@@ -229,6 +299,45 @@ export function ClaimFormPage() {
             <p className="text-xs text-slate-500">Format: +256 7XX XXXXXX</p>
           </div>
         </div>
+
+        {!account && (
+          <div className="rounded-xl bg-emerald-50/70 border border-emerald-200 p-4 space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createFollowUpAccount}
+                onChange={(e) => setCreateFollowUpAccount(e.target.checked)}
+                className="mt-0.5 w-5 h-5 rounded border-emerald-300 text-emerald-700 focus:ring-emerald-700 shrink-0"
+              />
+              <span className="text-xs sm:text-sm text-slate-800 leading-relaxed">
+                <strong className="font-semibold text-emerald-900">
+                  Create a Follow-Up Account with my Name &amp; WhatsApp
+                </strong>{' '}
+                to receive instant notifications when your claim is approved or reviewed.
+              </span>
+            </label>
+
+            {createFollowUpAccount && (
+              <div className="pl-0 sm:pl-8 space-y-1.5">
+                <label htmlFor="claim-account-pin" className="block text-xs font-semibold text-slate-700">
+                  Choose a 4–6 Digit PIN
+                </label>
+                <input
+                  id="claim-account-pin"
+                  type="password"
+                  inputMode="numeric"
+                  required={createFollowUpAccount}
+                  minLength={4}
+                  maxLength={12}
+                  value={accountPin}
+                  onChange={(e) => setAccountPin(e.target.value)}
+                  placeholder="••••"
+                  className="w-full sm:w-48 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Verification Questions */}
         <div className="pt-4 border-t border-slate-200 space-y-4">

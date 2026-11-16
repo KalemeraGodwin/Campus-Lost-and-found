@@ -1,12 +1,34 @@
-import { ChangeEvent, FormEvent, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Copy, ImagePlus, Lock, Plus, Trash2 } from 'lucide-react';
+import {
+  BellRing,
+  Check,
+  Copy,
+  ImagePlus,
+  Lock,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  UserCheck,
+} from 'lucide-react';
+import { useAccount } from '../context/AccountContext';
 import { createNotice, extractFriendlyError } from '../services/firebase';
 import { CAMPUS_LOCATIONS, CATEGORIES, NoticeType, VerificationQuestion } from '../types';
-import { isValidUgPhone, normalizeUgPhone } from '../utils/cryptoAndValidation';
+import { formatUgPhoneDisplay, isValidUgPhone, normalizeUgPhone } from '../utils/cryptoAndValidation';
 import { saveManagedNotice } from '../utils/localStorageStore';
 
 export function ReportItemPage() {
+  const { account, registerAccount, loginAccount, saveNoticeToAccount } = useAccount();
+
+  // Account creation / sign-in gate state (when not signed in)
+  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+  const [authName, setAuthName] = useState('');
+  const [authPhone, setAuthPhone] = useState('+256');
+  const [authPin, setAuthPin] = useState('');
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  // Report item form state
   const [type, setType] = useState<NoticeType>('found');
   const [category, setCategory] = useState<string>(CATEGORIES[0]);
   const [title, setTitle] = useState('');
@@ -19,8 +41,8 @@ export function ReportItemPage() {
   const [questions, setQuestions] = useState<VerificationQuestion[]>([
     { question: '', expectedAnswer: '' },
   ]);
-  const [reporterName, setReporterName] = useState('');
-  const [reporterWhatsApp, setReporterWhatsApp] = useState('+256');
+  const [reporterName, setReporterName] = useState(() => account?.name || '');
+  const [reporterWhatsApp, setReporterWhatsApp] = useState(() => account?.phoneNumber || '+256');
   const [pledgeAccepted, setPledgeAccepted] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -32,6 +54,38 @@ export function ReportItemPage() {
     title: string;
   } | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  useEffect(() => {
+    if (account) {
+      setReporterName(account.name);
+      setReporterWhatsApp(account.phoneNumber);
+    }
+  }, [account]);
+
+  async function handleAccountGateSubmit(e: FormEvent) {
+    e.preventDefault();
+    setAuthError(null);
+    setAuthSubmitting(true);
+    try {
+      if (authMode === 'register') {
+        await registerAccount({
+          name: authName,
+          phoneNumber: authPhone,
+          pin: authPin,
+        });
+      } else {
+        await loginAccount({
+          phoneNumber: authPhone,
+          pin: authPin,
+        });
+      }
+      setAuthPin('');
+    } catch (err) {
+      setAuthError(extractFriendlyError(err));
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }
 
   function handlePhotoChange(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
@@ -67,6 +121,7 @@ export function ReportItemPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!account) return;
     setError(null);
 
     const normalizedPhone = normalizeUgPhone(reporterWhatsApp);
@@ -106,13 +161,15 @@ export function ReportItemPage() {
         reporterWhatsApp: normalizedPhone,
       });
 
-      saveManagedNotice({
+      const localEntry = {
         noticeId: result.noticeId,
         managementToken: result.managementToken,
         title: result.notice.title,
         type: result.notice.type,
         createdAt: new Date().toISOString(),
-      });
+      };
+      saveManagedNotice(localEntry);
+      await saveNoticeToAccount(localEntry, account.accessKey).catch(() => {});
 
       setCreatedResult({
         noticeId: result.noticeId,
@@ -126,24 +183,170 @@ export function ReportItemPage() {
     }
   }
 
+  // Gate 1: Must create or sign into an account before reporting an item
+  if (!account) {
+    return (
+      <div className="max-w-md mx-auto space-y-6">
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-emerald-700">Step 1 · Account Required</p>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+            Create an Account to Report an Item
+          </h1>
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Create your account once with your Name and Ugandan WhatsApp number. Once signed in, you can report lost or found items anytime and get instant alerts when someone claims them.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('register');
+                setAuthError(null);
+              }}
+              className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                authMode === 'register'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Create Account
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('login');
+                setAuthError(null);
+              }}
+              className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                authMode === 'login'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Sign In
+            </button>
+          </div>
+
+          <form onSubmit={handleAccountGateSubmit} className="space-y-4">
+            {authMode === 'register' && (
+              <div className="space-y-1.5">
+                <label htmlFor="gate-name" className="block text-xs font-semibold text-slate-700">
+                  Full Name
+                </label>
+                <input
+                  id="gate-name"
+                  type="text"
+                  required
+                  minLength={2}
+                  maxLength={80}
+                  value={authName}
+                  onChange={(e) => setAuthName(e.target.value)}
+                  placeholder="e.g. Grace Namukasa"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <label htmlFor="gate-phone" className="block text-xs font-semibold text-slate-700">
+                Ugandan WhatsApp Number
+              </label>
+              <input
+                id="gate-phone"
+                type="tel"
+                required
+                value={authPhone}
+                onChange={(e) => setAuthPhone(e.target.value)}
+                onBlur={() => setAuthPhone(normalizeUgPhone(authPhone))}
+                placeholder="+256772123456"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              />
+              <p className="text-xs text-slate-500">
+                Format: +256 7XX XXXXXX (hidden until you approve a claim)
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="gate-pin" className="block text-xs font-semibold text-slate-700">
+                {authMode === 'register' ? 'Create a 4–6 Digit PIN' : 'Account PIN'}
+              </label>
+              <input
+                id="gate-pin"
+                type="password"
+                inputMode="numeric"
+                required
+                minLength={4}
+                maxLength={12}
+                value={authPin}
+                onChange={(e) => setAuthPin(e.target.value)}
+                placeholder="••••"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              />
+            </div>
+
+            {authError && (
+              <div
+                className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                role="alert"
+              >
+                {authError}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={authSubmitting}
+              className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+            >
+              {authSubmitting
+                ? authMode === 'register'
+                  ? 'Creating Account...'
+                  : 'Signing In...'
+                : authMode === 'register'
+                ? 'Create Account & Continue to Report'
+                : 'Sign In & Continue to Report'}
+            </button>
+          </form>
+
+          <div className="pt-3 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-500">
+            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <span>
+              You can edit your WhatsApp number or log out anytime from your Profile Dashboard.
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Gate 2: Confirmation screen after publishing a notice
   if (createdResult) {
     const managementUrl = `${window.location.origin}/my-notices?token=${createdResult.managementToken}`;
     return (
-      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 p-6 sm:p-8 space-y-6">
+      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 space-y-6">
         <div className="space-y-2">
           <p className="text-xs font-semibold text-emerald-700">Notice Published</p>
           <h1 className="font-display text-2xl font-bold text-slate-900">
             Your notice is live on CampusTrace
           </h1>
           <p className="text-sm text-slate-600 leading-relaxed">
-            Your WhatsApp number and expected answers remain hidden. Bookmark or copy your Private Management Link below to review incoming claims and approve the rightful handover.
+            Your WhatsApp number and expected answers remain hidden. You can review incoming claims from your account anytime or copy your Private Management Link below.
           </p>
+        </div>
+
+        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 flex items-start gap-2.5 text-xs sm:text-sm text-emerald-900">
+          <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <span>
+            Saved to your profile (<strong>{account.name}</strong>). You will receive live notifications whenever someone responds to this notice.
+          </span>
         </div>
 
         <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-slate-700">Private Management Link</span>
-            <span className="text-xs text-slate-500">Saved to this device</span>
+            <span className="text-xs text-slate-500">Synced to your account</span>
           </div>
           <p className="font-mono text-xs text-slate-800 break-all bg-white border border-slate-200 rounded-lg p-3">
             {managementUrl}
@@ -165,21 +368,32 @@ export function ReportItemPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             to={`/my-notices?token=${createdResult.managementToken}`}
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center transition-colors"
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center transition-colors text-center"
           >
             Open Reporter Dashboard
           </Link>
-          <Link
-            to={`/item/${createdResult.noticeId}`}
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center transition-colors"
+          <button
+            type="button"
+            onClick={() => {
+              setCreatedResult(null);
+              setTitle('');
+              setPublicDescription('');
+              setLocation('');
+              setPhotoFiles([]);
+              setPhotoPreviews([]);
+              setQuestions([{ question: '', expectedAnswer: '' }]);
+              setPledgeAccepted(false);
+            }}
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center transition-colors text-center"
           >
-            View Public Notice
-          </Link>
+            Report Another Item
+          </button>
         </div>
       </div>
     );
   }
 
+  // Gate 3: Signed-in Report an Item Form
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="space-y-1.5">
@@ -187,11 +401,26 @@ export function ReportItemPage() {
           Report an Item
         </h1>
         <p className="text-sm text-slate-600">
-          No account required. Your WhatsApp number stays private until you approve a verified claim.
+          Your WhatsApp number stays strictly private until you approve a verified claim.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-7 space-y-6">
+      <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-900">
+        <div className="flex items-center gap-2 min-w-0">
+          <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+          <span className="truncate">
+            Reporting as <strong>{account.name}</strong> ({formatUgPhoneDisplay(account.phoneNumber)})
+          </span>
+        </div>
+        <Link
+          to="/account"
+          className="text-xs font-semibold text-emerald-800 underline underline-offset-2 hover:text-emerald-950 shrink-0"
+        >
+          Manage Profile / Log Out
+        </Link>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-7 space-y-6">
         {/* Type Segmented Toggle */}
         <div className="space-y-2">
           <span className="block text-xs font-semibold text-slate-700">Notice Type</span>
@@ -356,7 +585,7 @@ export function ReportItemPage() {
 
         {/* Private Verification Questions */}
         <div className="pt-4 border-t border-slate-200 space-y-4">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div className="space-y-1">
               <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
                 <Lock className="w-4 h-4 text-emerald-700" />
@@ -418,9 +647,14 @@ export function ReportItemPage() {
           </div>
         </div>
 
-        {/* Reporter Identity */}
+        {/* Reporter Identity (Pre-filled from Profile) */}
         <div className="pt-4 border-t border-slate-200 space-y-4">
-          <h2 className="text-sm font-semibold text-slate-900">Your Contact Details (Private)</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-900">Your Contact Details (Private)</h2>
+            <Link to="/account" className="text-xs font-medium text-emerald-700 hover:underline">
+              Edit in Profile Dashboard
+            </Link>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label htmlFor="reporter-name" className="block text-xs font-semibold text-slate-700">

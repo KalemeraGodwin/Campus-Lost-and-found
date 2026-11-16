@@ -29,13 +29,18 @@ import { deleteObject, getDownloadURL, getStorage, ref, uploadBytes } from 'fire
 import firebaseConfig from '../../firebase-applet-config.json';
 import {
   AbuseReport,
+  AppNotification,
   BannedNumber,
   ClaimAnswer,
   ClaimHandover,
   ClaimRecord,
+  LocalManagedNotice,
+  LocalTrackedClaim,
   NoticeSecret,
   NoticeType,
+  NotificationKind,
   PublicNotice,
+  StudentAccountSession,
   VerificationQuestion,
 } from '../types';
 import {
@@ -763,7 +768,9 @@ export async function approveClaimOnNotice(params: {
   reporterWhatsApp: string;
 }): Promise<void> {
   const noticeRef = doc(db, 'notices', params.noticeId);
-  const noticeSnap = await getDoc(noticeRef);
+  const claimRef = doc(db, 'claims', params.claimId);
+  const [noticeSnap, claimSnap] = await Promise.all([getDoc(noticeRef), getDoc(claimRef)]);
+
   if (!noticeSnap.exists()) {
     throw new Error('Notice not found.');
   }
@@ -779,7 +786,7 @@ export async function approveClaimOnNotice(params: {
     approvedClaimId: params.claimId,
     updatedAt: serverTimestamp(),
   });
-  batch.update(doc(db, 'claims', params.claimId), {
+  batch.update(claimRef, {
     status: 'approved',
     rejectionReason: null,
     updatedAt: serverTimestamp(),
@@ -791,6 +798,23 @@ export async function approveClaimOnNotice(params: {
     reporterWhatsApp: params.reporterWhatsApp,
     approvedAt: serverTimestamp(),
   });
+
+  if (claimSnap.exists()) {
+    const claimantPhoneHash = String(claimSnap.data().claimantPhoneHash || '');
+    if (claimantPhoneHash.length === 64) {
+      const notifId = generateDocId('ntf');
+      batch.set(doc(db, 'notifications', notifId), {
+        recipientPhoneHash: claimantPhoneHash,
+        kind: 'claim_approved' as NotificationKind,
+        noticeId: params.noticeId,
+        claimId: params.claimId,
+        title: `Claim approved: ${String(noticeData.title || 'Campus Item')}`.slice(0, 140),
+        message: `${params.reporterName} approved your claim. Open Track Claim to view their WhatsApp contact for handover.`.slice(0, 400),
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    }
+  }
 
   try {
     await batch.commit();
@@ -810,6 +834,11 @@ export async function rejectClaimOnNotice(params: {
     throw new Error('Please provide a clear rejection reason (at least 3 characters).');
   }
 
+  const [noticeSnap, claimSnap] = await Promise.all([
+    getDoc(doc(db, 'notices', params.noticeId)),
+    getDoc(doc(db, 'claims', params.claimId)),
+  ]);
+
   const batch = writeBatch(db);
   batch.update(doc(db, 'claims', params.claimId), {
     status: 'rejected',
@@ -822,6 +851,24 @@ export async function rejectClaimOnNotice(params: {
       approvedClaimId: null,
       updatedAt: serverTimestamp(),
     });
+  }
+
+  if (claimSnap.exists()) {
+    const claimantPhoneHash = String(claimSnap.data().claimantPhoneHash || '');
+    const noticeTitle = noticeSnap.exists() ? String(noticeSnap.data().title || 'Campus Item') : 'Campus Item';
+    if (claimantPhoneHash.length === 64) {
+      const notifId = generateDocId('ntf');
+      batch.set(doc(db, 'notifications', notifId), {
+        recipientPhoneHash: claimantPhoneHash,
+        kind: 'claim_rejected' as NotificationKind,
+        noticeId: params.noticeId,
+        claimId: params.claimId,
+        title: `Claim update: ${noticeTitle}`.slice(0, 140),
+        message: `Claim rejected: ${reason}. You can resubmit with stronger evidence.`.slice(0, 400),
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    }
   }
 
   try {
@@ -876,6 +923,12 @@ export async function submitClaim(
       .map((file, idx) => uploadMediaFile('claims', claimId, file, idx))
   );
 
+  const noticeSnap = await getDoc(doc(db, 'notices', input.noticeId));
+  if (!noticeSnap.exists()) {
+    throw new Error('Target notice no longer exists.');
+  }
+  const noticeData = noticeSnap.data();
+
   const batch = writeBatch(db);
   batch.set(doc(db, 'claims', claimId), {
     claimCodeHash,
@@ -904,6 +957,21 @@ export async function submitClaim(
     noticeId: input.noticeId,
     createdAt: serverTimestamp(),
   });
+
+  const reporterPhoneHash = String(noticeData.reporterPhoneHash || '');
+  if (reporterPhoneHash.length === 64) {
+    const notifId = generateDocId('ntf');
+    batch.set(doc(db, 'notifications', notifId), {
+      recipientPhoneHash: reporterPhoneHash,
+      kind: 'new_claim' as NotificationKind,
+      noticeId: input.noticeId,
+      claimId,
+      title: `Response on ${String(noticeData.title || 'your notice')}`.slice(0, 140),
+      message: `${input.claimantName.trim()} answered your verification questions and uploaded evidence. Review on My Notices.`.slice(0, 400),
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+  }
 
   try {
     await batch.commit();
@@ -984,18 +1052,44 @@ export async function resubmitRejectedClaim(params: {
     throw new Error('At least 1 evidence file is required.');
   }
 
+  const claimSnap = await getDoc(doc(db, 'claims', params.claimId));
+  const claimData = claimSnap.exists() ? claimSnap.data() : null;
+  const noticeId = claimData ? String(claimData.noticeId || '') : '';
+  const noticeSnap = noticeId ? await getDoc(doc(db, 'notices', noticeId)) : null;
+
+  const batch = writeBatch(db);
+  batch.update(doc(db, 'claims', params.claimId), {
+    answers: params.answers.map((a) => ({
+      question: a.question.trim(),
+      answer: a.answer.trim(),
+    })),
+    evidenceUrls: combinedEvidence,
+    status: 'pending',
+    rejectionReason: null,
+    updatedAt: serverTimestamp(),
+  });
+
+  if (noticeSnap && noticeSnap.exists() && claimData) {
+    const noticeData = noticeSnap.data();
+    const reporterPhoneHash = String(noticeData.reporterPhoneHash || '');
+    if (reporterPhoneHash.length === 64) {
+      const notifId = generateDocId('ntf');
+      batch.set(doc(db, 'notifications', notifId), {
+        recipientPhoneHash: reporterPhoneHash,
+        kind: 'claim_resubmitted' as NotificationKind,
+        noticeId,
+        claimId: params.claimId,
+        title: `Updated claim on ${String(noticeData.title || 'your notice')}`.slice(0, 140),
+        message: `${String(claimData.claimantName || 'A claimant')} resubmitted updated answers and evidence for review.`.slice(0, 400),
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    }
+  }
+
   const path = `claims/${params.claimId}`;
   try {
-    await updateDoc(doc(db, 'claims', params.claimId), {
-      answers: params.answers.map((a) => ({
-        question: a.question.trim(),
-        answer: a.answer.trim(),
-      })),
-      evidenceUrls: combinedEvidence,
-      status: 'pending',
-      rejectionReason: null,
-      updatedAt: serverTimestamp(),
-    });
+    await batch.commit();
   } catch (error) {
     handleFirestoreError(error, OperationType.UPDATE, path);
   }
@@ -1224,3 +1318,430 @@ export async function adminPurgeOldEvidence(): Promise<{ purgedClaims: number }>
     handleFirestoreError(error, OperationType.UPDATE, 'claims_evidence_purge');
   }
 }
+
+// --- Student Follow-Up Account & Real-Time Notifications ---
+
+export async function registerStudentAccount(params: {
+  name: string;
+  phoneNumber: string;
+  pin: string;
+}): Promise<StudentAccountSession> {
+  const cleanName = params.name.trim();
+  if (cleanName.length < 2) {
+    throw new Error('Please enter your full name.');
+  }
+  const normalizedPhone = normalizeUgPhone(params.phoneNumber);
+  if (!isValidUgPhone(normalizedPhone)) {
+    throw new Error('Enter a valid Ugandan WhatsApp number (+256 followed by 9 digits).');
+  }
+  const banStatus = await checkNumberBanned(normalizedPhone);
+  if (banStatus.banned) {
+    throw new Error(`This WhatsApp number is suspended (${banStatus.reason || 'Policy violation'}).`);
+  }
+  const cleanPin = params.pin.trim();
+  if (cleanPin.length < 4 || cleanPin.length > 12) {
+    throw new Error('Choose a PIN between 4 and 12 characters to protect your follow-up account.');
+  }
+
+  const phoneHash = await sha256Hex(normalizedPhone);
+  const pinHash = await sha256Hex(cleanPin);
+  const accessKey = await sha256Hex(`${normalizedPhone}:${pinHash}`);
+
+  const accountRef = doc(db, 'accounts', phoneHash);
+  let existingSnap;
+  try {
+    existingSnap = await getDoc(accountRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `accounts/${phoneHash}`);
+  }
+
+  if (existingSnap.exists()) {
+    throw new Error(
+      'An account already exists for this WhatsApp number. Switch to Sign In and enter your PIN.'
+    );
+  }
+
+  try {
+    await setDoc(accountRef, {
+      name: cleanName,
+      phoneNumber: normalizedPhone,
+      pinHash,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `accounts/${phoneHash}`);
+  }
+
+  return {
+    name: cleanName,
+    phoneNumber: normalizedPhone,
+    phoneHash,
+    accessKey,
+    previousPhoneHashes: [],
+  };
+}
+
+export async function signInStudentAccount(params: {
+  phoneNumber: string;
+  pin: string;
+}): Promise<StudentAccountSession> {
+  const normalizedPhone = normalizeUgPhone(params.phoneNumber);
+  if (!isValidUgPhone(normalizedPhone)) {
+    throw new Error('Enter a valid Ugandan WhatsApp number (+256 followed by 9 digits).');
+  }
+  const cleanPin = params.pin.trim();
+  if (cleanPin.length < 4) {
+    throw new Error('Enter your 4+ character account PIN.');
+  }
+
+  const phoneHash = await sha256Hex(normalizedPhone);
+  const pinHash = await sha256Hex(cleanPin);
+  const accessKey = await sha256Hex(`${normalizedPhone}:${pinHash}`);
+
+  let snap;
+  try {
+    snap = await getDoc(doc(db, 'accounts', phoneHash));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `accounts/${phoneHash}`);
+  }
+
+  if (!snap.exists()) {
+    throw new Error('No account found for this WhatsApp number. Create an account first.');
+  }
+
+  const data = snap.data();
+  if (String(data.pinHash) !== pinHash) {
+    throw new Error('Incorrect PIN for this WhatsApp number.');
+  }
+
+  const previousPhoneHashes = Array.isArray(data.previousPhoneHashes)
+    ? data.previousPhoneHashes.map(String).filter((h) => h.length === 64)
+    : [];
+
+  return {
+    name: String(data.name || 'Student'),
+    phoneNumber: normalizedPhone,
+    phoneHash,
+    accessKey,
+    previousPhoneHashes,
+  };
+}
+
+export async function updateStudentAccountProfile(params: {
+  currentSession: StudentAccountSession;
+  newName: string;
+  newPhoneNumber: string;
+}): Promise<StudentAccountSession> {
+  const cleanName = params.newName.trim();
+  if (cleanName.length < 2 || cleanName.length > 80) {
+    throw new Error('Name must be between 2 and 80 characters.');
+  }
+
+  const normalizedNewPhone = normalizeUgPhone(params.newPhoneNumber);
+  if (!isValidUgPhone(normalizedNewPhone)) {
+    throw new Error('Enter a valid Ugandan WhatsApp number (+256 followed by 9 digits).');
+  }
+
+  const banStatus = await checkNumberBanned(normalizedNewPhone);
+  if (banStatus.banned) {
+    throw new Error(`This WhatsApp number is suspended (${banStatus.reason || 'Policy violation'}).`);
+  }
+
+  const oldPhoneHash = params.currentSession.phoneHash;
+  const oldAccountRef = doc(db, 'accounts', oldPhoneHash);
+  let oldSnap;
+  try {
+    oldSnap = await getDoc(oldAccountRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `accounts/${oldPhoneHash}`);
+  }
+
+  if (!oldSnap.exists()) {
+    throw new Error('Your account record could not be found. Please sign out and sign in again.');
+  }
+
+  const oldData = oldSnap.data();
+  const pinHash = String(oldData.pinHash || '');
+  const existingPrevHashes = Array.isArray(oldData.previousPhoneHashes)
+    ? oldData.previousPhoneHashes.map(String).filter((h) => h.length === 64)
+    : [];
+
+  const oldVault = await fetchAccountVault(params.currentSession.accessKey);
+  const tokenHashes = await Promise.all(
+    oldVault.notices.map(async (n) => ({
+      notice: n,
+      tokenHash: await sha256Hex(n.managementToken),
+    }))
+  );
+  const existingSecretRefs = await Promise.all(
+    tokenHashes.map(async ({ tokenHash }) => {
+      try {
+        const s = await getDoc(doc(db, 'noticeSecrets', tokenHash));
+        return s.exists() ? tokenHash : null;
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  // Case 1: Same WhatsApp number, only updating display name
+  if (normalizedNewPhone === params.currentSession.phoneNumber) {
+    const batch = writeBatch(db);
+    batch.update(oldAccountRef, {
+      name: cleanName,
+      updatedAt: serverTimestamp(),
+    });
+    existingSecretRefs.forEach((tokenHash) => {
+      if (tokenHash) {
+        batch.update(doc(db, 'noticeSecrets', tokenHash), {
+          reporterName: cleanName,
+        });
+      }
+    });
+    try {
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `accounts/${oldPhoneHash}`);
+    }
+    return {
+      ...params.currentSession,
+      name: cleanName,
+    };
+  }
+
+  // Case 2: Updating WhatsApp number -> migrate account ID, vault key, and active notice secrets
+  const newPhoneHash = await sha256Hex(normalizedNewPhone);
+  const newAccountRef = doc(db, 'accounts', newPhoneHash);
+  let targetSnap;
+  try {
+    targetSnap = await getDoc(newAccountRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, `accounts/${newPhoneHash}`);
+  }
+
+  if (targetSnap.exists()) {
+    throw new Error(
+      'Another account is already registered with that WhatsApp number. Choose a different number.'
+    );
+  }
+
+  const newAccessKey = await sha256Hex(`${normalizedNewPhone}:${pinHash}`);
+  const nextPrevHashes = Array.from(new Set([...existingPrevHashes, oldPhoneHash]))
+    .filter((h) => h !== newPhoneHash)
+    .slice(-10);
+
+  const batch = writeBatch(db);
+  batch.set(newAccountRef, {
+    name: cleanName,
+    phoneNumber: normalizedNewPhone,
+    pinHash,
+    previousPhoneHashes: nextPrevHashes,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  batch.delete(oldAccountRef);
+
+  oldVault.notices.forEach((n) => {
+    batch.set(doc(db, 'accountVaults', newAccessKey, 'notices', n.noticeId), {
+      noticeId: n.noticeId,
+      managementToken: n.managementToken,
+      title: n.title.slice(0, 120),
+      type: n.type,
+      createdAt: serverTimestamp(),
+    });
+    batch.delete(doc(db, 'accountVaults', params.currentSession.accessKey, 'notices', n.noticeId));
+  });
+
+  oldVault.claims.forEach((c) => {
+    batch.set(doc(db, 'accountVaults', newAccessKey, 'claims', c.claimId), {
+      claimId: c.claimId,
+      claimCode: c.claimCode,
+      noticeId: c.noticeId,
+      noticeTitle: c.noticeTitle.slice(0, 120),
+      createdAt: serverTimestamp(),
+    });
+    batch.delete(doc(db, 'accountVaults', params.currentSession.accessKey, 'claims', c.claimId));
+  });
+
+  existingSecretRefs.forEach((tokenHash) => {
+    if (tokenHash) {
+      batch.update(doc(db, 'noticeSecrets', tokenHash), {
+        reporterName: cleanName,
+        reporterWhatsApp: normalizedNewPhone,
+      });
+    }
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `accounts/${newPhoneHash}`);
+  }
+
+  return {
+    name: cleanName,
+    phoneNumber: normalizedNewPhone,
+    phoneHash: newPhoneHash,
+    accessKey: newAccessKey,
+    previousPhoneHashes: nextPrevHashes,
+  };
+}
+
+export async function saveNoticeToAccountVault(
+  accessKey: string,
+  entry: LocalManagedNotice
+): Promise<void> {
+  if (!hasFirebaseConfig || !accessKey) return;
+  const path = `accountVaults/${accessKey}/notices/${entry.noticeId}`;
+  try {
+    await setDoc(doc(db, 'accountVaults', accessKey, 'notices', entry.noticeId), {
+      noticeId: entry.noticeId,
+      managementToken: entry.managementToken,
+      title: entry.title.slice(0, 120),
+      type: entry.type,
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function saveClaimToAccountVault(
+  accessKey: string,
+  entry: LocalTrackedClaim
+): Promise<void> {
+  if (!hasFirebaseConfig || !accessKey) return;
+  const path = `accountVaults/${accessKey}/claims/${entry.claimId}`;
+  try {
+    await setDoc(doc(db, 'accountVaults', accessKey, 'claims', entry.claimId), {
+      claimId: entry.claimId,
+      claimCode: entry.claimCode,
+      noticeId: entry.noticeId,
+      noticeTitle: entry.noticeTitle.slice(0, 120),
+      createdAt: serverTimestamp(),
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+  }
+}
+
+export async function fetchAccountVault(accessKey: string): Promise<{
+  notices: LocalManagedNotice[];
+  claims: LocalTrackedClaim[];
+}> {
+  if (!hasFirebaseConfig || !accessKey) {
+    return { notices: [], claims: [] };
+  }
+  try {
+    const [noticesSnap, claimsSnap] = await Promise.all([
+      getDocs(collection(db, 'accountVaults', accessKey, 'notices')),
+      getDocs(collection(db, 'accountVaults', accessKey, 'claims')),
+    ]);
+
+    const notices: LocalManagedNotice[] = noticesSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        noticeId: String(data.noticeId || d.id),
+        managementToken: String(data.managementToken || ''),
+        title: String(data.title || 'Notice'),
+        type: (data.type as NoticeType) || 'found',
+        createdAt: toDate(data.createdAt).toISOString(),
+      };
+    });
+
+    const claims: LocalTrackedClaim[] = claimsSnap.docs.map((d) => {
+      const data = d.data();
+      return {
+        claimId: String(data.claimId || d.id),
+        claimCode: String(data.claimCode || ''),
+        noticeId: String(data.noticeId || ''),
+        noticeTitle: String(data.noticeTitle || 'Campus Item'),
+        createdAt: toDate(data.createdAt).toISOString(),
+      };
+    });
+
+    return { notices, claims };
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, `accountVaults/${accessKey}`);
+  }
+}
+
+export function subscribeAccountNotifications(
+  recipientPhoneHashes: string | string[],
+  onData: (items: AppNotification[]) => void,
+  onError?: (err: Error) => void
+): () => void {
+  const hashList = Array.from(
+    new Set(
+      (Array.isArray(recipientPhoneHashes) ? recipientPhoneHashes : [recipientPhoneHashes]).filter(
+        (h) => typeof h === 'string' && h.length === 64
+      )
+    )
+  ).slice(0, 10);
+
+  if (!hasFirebaseConfig || hashList.length === 0) {
+    onData([]);
+    return () => {};
+  }
+
+  const q =
+    hashList.length === 1
+      ? query(collection(db, 'notifications'), where('recipientPhoneHash', '==', hashList[0]))
+      : query(collection(db, 'notifications'), where('recipientPhoneHash', 'in', hashList));
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const items: AppNotification[] = snapshot.docs
+        .map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            recipientPhoneHash: String(data.recipientPhoneHash || ''),
+            kind: (data.kind as NotificationKind) || 'new_claim',
+            noticeId: String(data.noticeId || ''),
+            claimId: String(data.claimId || ''),
+            title: String(data.title || ''),
+            message: String(data.message || ''),
+            read: Boolean(data.read),
+            createdAt: toDate(data.createdAt),
+          };
+        })
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      onData(items);
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.LIST, 'notifications');
+      } catch (wrapped) {
+        if (onError && wrapped instanceof Error) {
+          onError(wrapped);
+        }
+      }
+    }
+  );
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  const path = `notifications/${notificationId}`;
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), { read: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, path);
+  }
+}
+
+export async function markAllNotificationsRead(notificationIds: string[]): Promise<void> {
+  if (!notificationIds.length) return;
+  const batch = writeBatch(db);
+  notificationIds.slice(0, 100).forEach((id) => {
+    batch.update(doc(db, 'notifications', id), { read: true });
+  });
+  try {
+    await batch.commit();
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'notifications');
+  }
+}
+

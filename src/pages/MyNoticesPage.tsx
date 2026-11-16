@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
+  BellRing,
   CheckCircle2,
   Copy,
   Edit3,
@@ -15,6 +16,7 @@ import {
 import { NoticeImage } from '../components/NoticeImage';
 import { ReportAbuseModal } from '../components/ReportAbuseModal';
 import { ClaimStatusIndicator, NoticeStatusIndicator } from '../components/StatusText';
+import { useAccount } from '../context/AccountContext';
 import {
   ManagedNoticeBundle,
   approveClaimOnNotice,
@@ -33,6 +35,7 @@ import {
 } from '../utils/localStorageStore';
 
 export function MyNoticesPage() {
+  const { account, notifications, syncVault, markAsRead } = useAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tokenInput, setTokenInput] = useState('');
   const [bundles, setBundles] = useState<ManagedNoticeBundle[]>([]);
@@ -105,9 +108,31 @@ export function MyNoticesPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
     const urlToken = searchParams.get('token');
-    loadAllSavedNotices(urlToken ? extractTokenFromInput(urlToken) : undefined);
-  }, [searchParams, loadAllSavedNotices]);
+    const extraToken = urlToken ? extractTokenFromInput(urlToken) : undefined;
+
+    (async () => {
+      if (account?.accessKey) {
+        await syncVault(account.accessKey);
+      }
+      if (active) {
+        await loadAllSavedNotices(extraToken);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, account?.accessKey, syncVault, loadAllSavedNotices]);
+
+  const unreadReporterAlerts = useMemo(
+    () =>
+      notifications.filter(
+        (n) => !n.read && (n.kind === 'new_claim' || n.kind === 'claim_resubmitted')
+      ),
+    [notifications]
+  );
 
   const totalPendingClaims = useMemo(() => {
     return bundles.reduce(
@@ -236,8 +261,8 @@ export function MyNoticesPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
+        <div className="space-y-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2.5">
             <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
               My Notices
             </h1>
@@ -253,11 +278,65 @@ export function MyNoticesPage() {
         </div>
         <Link
           to="/report"
-          className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center shrink-0"
+          className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center shrink-0"
         >
           Post New Notice
         </Link>
       </div>
+
+      {/* Follow-Up Account Alerts or Prompt */}
+      {account ? (
+        unreadReporterAlerts.length > 0 && (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+              <div className="space-y-0.5 min-w-0">
+                <p className="text-xs sm:text-sm font-semibold text-emerald-900">
+                  {unreadReporterAlerts[0].title}
+                </p>
+                <p className="text-xs text-emerald-800 leading-relaxed">
+                  {unreadReporterAlerts[0].message}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => Promise.all(unreadReporterAlerts.map((a) => markAsRead(a.id)))}
+                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-emerald-800 hover:bg-emerald-100/60"
+              >
+                Mark alerts read
+              </button>
+              <Link
+                to="/account"
+                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 inline-flex items-center"
+              >
+                All Alerts ({unreadReporterAlerts.length})
+              </Link>
+            </div>
+          </div>
+        )
+      ) : (
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-slate-900">
+                Get instant alerts when someone claims your item
+              </p>
+              <p className="text-xs text-slate-600">
+                Create or sign into a Follow-Up Account using your Name &amp; Ugandan WhatsApp number to sync notices across devices and get notified.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/account"
+            className="w-full sm:w-auto min-h-[40px] px-4 py-2 rounded-xl border border-emerald-700 text-xs font-semibold text-emerald-800 hover:bg-emerald-50 inline-flex items-center justify-center shrink-0"
+          >
+            Set Up Account Alerts
+          </Link>
+        </div>
+      )}
 
       {/* Paste Management Token / Link */}
       <form
@@ -320,12 +399,12 @@ export function MyNoticesPage() {
                 className="bg-white rounded-2xl border border-slate-200 overflow-hidden"
               >
                 {/* Notice Header */}
-                <div className="p-5 sm:p-6 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="w-20 h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
+                <div className="p-4 sm:p-6 border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4 min-w-0">
+                    <div className="w-16 h-14 sm:w-20 sm:h-16 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
                       <NoticeImage src={bundle.notice.photos[0]} alt={bundle.notice.title} />
                     </div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <span className={bundle.notice.type === 'found' ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'}>
                           {bundle.notice.type === 'found' ? 'Found' : 'Lost'}
@@ -341,10 +420,10 @@ export function MyNoticesPage() {
                           </>
                         )}
                       </div>
-                      <h2 className="font-display text-lg font-bold text-slate-900">
+                      <h2 className="font-display text-base sm:text-lg font-bold text-slate-900 break-words">
                         {bundle.notice.title}
                       </h2>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-slate-500 break-words">
                         {bundle.notice.location} · {bundle.notice.category} · {formatShortDate(bundle.notice.itemDate)}
                       </p>
                     </div>
@@ -597,7 +676,7 @@ export function MyNoticesPage() {
         >
           <form
             onSubmit={handleConfirmReject}
-            className="w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4"
+            className="w-full sm:max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4"
           >
             <h2 className="font-display text-lg font-bold text-slate-900">
               Reject Claim from {rejectingTarget.claim.claimantName}
@@ -644,7 +723,7 @@ export function MyNoticesPage() {
         >
           <form
             onSubmit={handleSaveEdit}
-            className="w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4"
+            className="w-full sm:max-w-lg max-h-[90vh] overflow-y-auto bg-white rounded-t-3xl sm:rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4"
           >
             <h2 className="font-display text-lg font-bold text-slate-900">Edit Notice Details</h2>
             <div className="space-y-3">
@@ -660,7 +739,7 @@ export function MyNoticesPage() {
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Category</label>
                   <select

@@ -1,6 +1,11 @@
 export type NoticeType = 'found' | 'lost';
 export type NoticeStatus = 'open' | 'returned' | 'archived' | 'removed';
 export type ClaimStatus = 'pending' | 'approved' | 'rejected';
+export type NotificationKind =
+  | 'new_claim'
+  | 'claim_resubmitted'
+  | 'claim_approved'
+  | 'claim_rejected';
 
 export const CATEGORIES = [
   'Electronics',
@@ -74,7 +79,6 @@ export interface ClaimRecord {
   rejectionReason: string | null;
   createdAt: Date;
   updatedAt: Date;
-  // Populated only for Admin moderation view
   claimantWhatsApp?: string;
 }
 
@@ -84,6 +88,26 @@ export interface ClaimHandover {
   reporterName: string;
   reporterWhatsApp: string;
   approvedAt: Date;
+}
+
+export interface StudentAccountSession {
+  name: string;
+  phoneNumber: string;
+  phoneHash: string;
+  accessKey: string;
+  previousPhoneHashes?: string[];
+}
+
+export interface AppNotification {
+  id: string;
+  recipientPhoneHash: string;
+  kind: NotificationKind;
+  noticeId: string;
+  claimId: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: Date;
 }
 
 export interface AbuseReport {

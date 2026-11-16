@@ -15,7 +15,7 @@
         "photos": { "type": "array", "description": "Array of image URLs (1 to 5)" },
         "reporterFirstName": { "type": "string", "minLength": 1, "maxLength": 60, "description": "Reporter first name shown publicly" },
         "verificationPrompts": { "type": "array", "description": "Public list of verification question prompts without expected answers" },
-        "reporterPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of Ugandan WhatsApp number for 24h rate limiting" },
+        "reporterPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of Ugandan WhatsApp number for 24h rate limiting and notification routing" },
         "approvedClaimId": { "type": "string", "maxLength": 128, "description": "Currently approved claim document ID or null" },
         "createdAt": { "type": "string", "format": "date-time", "description": "Server creation timestamp" },
         "updatedAt": { "type": "string", "format": "date-time", "description": "Server update timestamp" },
@@ -44,7 +44,7 @@
         "claimCodeHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of the human-readable claim code" },
         "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$", "description": "Target notice ID" },
         "claimantName": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Claimant display name" },
-        "claimantPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of claimant WhatsApp for 24h rate limiting" },
+        "claimantPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of claimant WhatsApp for 24h rate limiting and notification routing" },
         "answers": { "type": "array", "description": "Answers to verification questions" },
         "evidenceUrls": { "type": "array", "description": "Uploaded evidence URLs (1 to 5)" },
         "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Claim review status" },
@@ -88,6 +88,62 @@
         "approvedAt": { "type": "string", "format": "date-time", "description": "Approval timestamp" }
       },
       "required": ["claimId", "noticeId", "reporterName", "reporterWhatsApp", "approvedAt"]
+    },
+    "StudentAccount": {
+      "title": "StudentAccount",
+      "description": "Student follow-up account keyed by SHA-256 of WhatsApp number with PIN verification.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80, "description": "Student full name" },
+        "phoneNumber": { "type": "string", "pattern": "^\\+256\\d{9}$", "description": "Ugandan WhatsApp number" },
+        "pinHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$", "description": "SHA-256 hash of user PIN" },
+        "previousPhoneHashes": { "type": "array", "description": "Optional list of prior phone SHA-256 hashes (max 10) for notification continuity after updating WhatsApp number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp" }
+      },
+      "required": ["name", "phoneNumber", "pinHash", "createdAt", "updatedAt"]
+    },
+    "VaultNoticeEntry": {
+      "title": "VaultNoticeEntry",
+      "description": "Notice management link saved inside a PIN-protected account vault.",
+      "type": "object",
+      "properties": {
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "managementToken": { "type": "string", "minLength": 8, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "type": { "type": "string", "enum": ["found", "lost"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["noticeId", "managementToken", "title", "type", "createdAt"]
+    },
+    "VaultClaimEntry": {
+      "title": "VaultClaimEntry",
+      "description": "Submitted claim tracking entry saved inside a PIN-protected account vault.",
+      "type": "object",
+      "properties": {
+        "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "claimCode": { "type": "string", "minLength": 4, "maxLength": 32 },
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "noticeTitle": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["claimId", "claimCode", "noticeId", "noticeTitle", "createdAt"]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "Real-time notification triggered when a claim is submitted, resubmitted, approved, or rejected.",
+      "type": "object",
+      "properties": {
+        "recipientPhoneHash": { "type": "string", "minLength": 64, "maxLength": 64, "pattern": "^[a-f0-9]{64}$" },
+        "kind": { "type": "string", "enum": ["new_claim", "claim_resubmitted", "claim_approved", "claim_rejected"] },
+        "noticeId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "claimId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["recipientPhoneHash", "kind", "noticeId", "claimId", "title", "message", "read", "createdAt"]
     },
     "Report": {
       "title": "Report",
@@ -148,6 +204,22 @@
     "/claimHandovers/{claimCodeHash}": {
       "schema": { "$ref": "#/entities/ClaimHandover" },
       "description": "Revealed reporter WhatsApp for an approved claim"
+    },
+    "/accounts/{phoneHash}": {
+      "schema": { "$ref": "#/entities/StudentAccount" },
+      "description": "Student follow-up accounts keyed by WhatsApp SHA-256 hash"
+    },
+    "/accountVaults/{accessKey}/notices/{noticeId}": {
+      "schema": { "$ref": "#/entities/VaultNoticeEntry" },
+      "description": "PIN-protected saved notices for a student account"
+    },
+    "/accountVaults/{accessKey}/claims/{claimId}": {
+      "schema": { "$ref": "#/entities/VaultClaimEntry" },
+      "description": "PIN-protected saved claims for a student account"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "Real-time notifications for reporters and claimants"
     },
     "/reports/{reportId}": {
       "schema": { "$ref": "#/entities/Report" },

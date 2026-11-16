@@ -350,7 +350,7 @@ export function AdminPage() {
                       key={n.id}
                       className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="font-semibold uppercase text-slate-600">{n.type}</span>
                           <span className="text-slate-300">·</span>
@@ -358,9 +358,9 @@ export function AdminPage() {
                           <span className="text-slate-300">·</span>
                           <span className="text-slate-500 tabular-nums">{formatShortDate(n.createdAt)}</span>
                         </div>
-                        <p className="font-semibold text-sm text-slate-900">{n.title}</p>
-                        <p className="text-xs text-slate-500">
-                          {n.location} · ID: <code className="font-mono">{n.id}</code>
+                        <p className="font-semibold text-sm text-slate-900 break-words">{n.title}</p>
+                        <p className="text-xs text-slate-500 break-words">
+                          {n.location} · ID: <code className="font-mono break-all">{n.id}</code>
                           {contact && (
                             <>
                               {' '}
@@ -421,7 +421,7 @@ export function AdminPage() {
                     key={c.id}
                     className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <ClaimStatusIndicator status={c.status} />
                         <span className="text-slate-300">·</span>
@@ -433,12 +433,12 @@ export function AdminPage() {
                           {c.evidenceUrls.length} evidence file(s)
                         </span>
                       </div>
-                      <p className="font-semibold text-sm text-slate-900">
+                      <p className="font-semibold text-sm text-slate-900 break-words">
                         Claim by {c.claimantName}
                       </p>
-                      <p className="text-xs text-slate-500">
-                        Claim ID: <code className="font-mono">{c.id}</code> · Notice:{' '}
-                        <code className="font-mono">{c.noticeId}</code>
+                      <p className="text-xs text-slate-500 break-words">
+                        Claim ID: <code className="font-mono break-all">{c.id}</code> · Notice:{' '}
+                        <code className="font-mono break-all">{c.noticeId}</code>
                         {c.claimantWhatsApp && (
                           <>
                             {' '}
@@ -569,13 +569,13 @@ export function AdminPage() {
                   data.bannedNumbers.map((b) => (
                     <div
                       key={b.phoneNumber}
-                      className="p-4 sm:p-5 flex items-center justify-between gap-4"
+                      className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                     >
-                      <div className="space-y-0.5">
+                      <div className="space-y-0.5 min-w-0">
                         <p className="font-mono text-sm font-semibold text-slate-900">
                           {b.phoneNumber}
                         </p>
-                        <p className="text-xs text-slate-600">
+                        <p className="text-xs text-slate-600 break-words">
                           {b.reason} · Banned {formatShortDate(b.bannedAt)}
                         </p>
                       </div>

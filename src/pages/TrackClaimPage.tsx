@@ -1,7 +1,8 @@
-import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
+  BellRing,
   Clock,
   FileText,
   MessageCircle,
@@ -11,6 +12,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { ClaimStatusIndicator } from '../components/StatusText';
+import { useAccount } from '../context/AccountContext';
 import {
   TrackedClaimBundle,
   extractFriendlyError,
@@ -22,6 +24,7 @@ import { buildWhatsAppUrl, formatShortDate, formatUgPhoneDisplay } from '../util
 import { getSavedTrackedClaims } from '../utils/localStorageStore';
 
 export function TrackClaimPage() {
+  const { account, notifications, syncVault, markAsRead } = useAccount();
   const [searchParams, setSearchParams] = useSearchParams();
   const [savedClaims, setSavedClaims] = useState<LocalTrackedClaim[]>([]);
   const [claimCode, setClaimCode] = useState('');
@@ -61,16 +64,35 @@ export function TrackClaimPage() {
   }, []);
 
   useEffect(() => {
-    const localList = getSavedTrackedClaims();
-    setSavedClaims(localList);
+    let active = true;
+    (async () => {
+      if (account?.accessKey) {
+        await syncVault(account.accessKey);
+      }
+      if (!active) return;
+      const localList = getSavedTrackedClaims();
+      setSavedClaims(localList);
 
-    const paramCode = searchParams.get('code');
-    const initialCode = paramCode || localList[0]?.claimCode || '';
-    if (initialCode) {
-      setClaimCode(initialCode);
-      performLookup(initialCode);
-    }
-  }, [searchParams, performLookup]);
+      const paramCode = searchParams.get('code');
+      const initialCode = paramCode || localList[0]?.claimCode || '';
+      if (initialCode) {
+        setClaimCode(initialCode);
+        performLookup(initialCode);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [searchParams, account?.accessKey, syncVault, performLookup]);
+
+  const unreadClaimAlerts = useMemo(
+    () =>
+      notifications.filter(
+        (n) => !n.read && (n.kind === 'claim_approved' || n.kind === 'claim_rejected')
+      ),
+    [notifications]
+  );
 
   function handleSearchSubmit(e: FormEvent) {
     e.preventDefault();
@@ -123,6 +145,27 @@ export function TrackClaimPage() {
           Enter your Claim Code to check review status or unlock WhatsApp contact once approved.
         </p>
       </div>
+
+      {account && unreadClaimAlerts.length > 0 && (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 min-w-0">
+              <p className="text-xs sm:text-sm font-semibold text-emerald-900">
+                {unreadClaimAlerts[0].title}
+              </p>
+              <p className="text-xs text-emerald-800">{unreadClaimAlerts[0].message}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => Promise.all(unreadClaimAlerts.map((a) => markAsRead(a.id)))}
+            className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-emerald-800 hover:bg-emerald-100/60 shrink-0"
+          >
+            Mark read
+          </button>
+        </div>
+      )}
 
       {/* Claim Code Search */}
       <form

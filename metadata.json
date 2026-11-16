@@ -2,5 +2,7 @@
   "name": "CampusTrace — Campus Lost & Found",
   "description": "Mobile-first campus lost and found platform with private verification questions, evidence-backed claims, WhatsApp handover reveal, and admin moderation.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

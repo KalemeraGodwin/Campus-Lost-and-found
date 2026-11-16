@@ -142,6 +142,54 @@ service cloud.firestore {
         && data.approvedAt is timestamp;
     }
 
+    function isValidStudentAccount(data) {
+      return data.keys().hasAll(['name', 'phoneNumber', 'pinHash', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['name', 'phoneNumber', 'pinHash', 'previousPhoneHashes', 'createdAt', 'updatedAt'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 80
+        && isValidPhone(data.phoneNumber)
+        && isValidSha256(data.pinHash)
+        && (!('previousPhoneHashes' in data) || (
+          data.previousPhoneHashes is list
+          && data.previousPhoneHashes.size() <= 10
+          && (data.previousPhoneHashes.size() == 0 || isValidSha256(data.previousPhoneHashes[0]))
+        ))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidVaultNoticeEntry(data) {
+      return data.keys().hasAll(['noticeId', 'managementToken', 'title', 'type', 'createdAt'])
+        && data.keys().hasOnly(['noticeId', 'managementToken', 'title', 'type', 'createdAt'])
+        && isValidId(data.noticeId)
+        && data.managementToken is string && data.managementToken.size() >= 8 && data.managementToken.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 120
+        && data.type in ['found', 'lost']
+        && data.createdAt is timestamp;
+    }
+
+    function isValidVaultClaimEntry(data) {
+      return data.keys().hasAll(['claimId', 'claimCode', 'noticeId', 'noticeTitle', 'createdAt'])
+        && data.keys().hasOnly(['claimId', 'claimCode', 'noticeId', 'noticeTitle', 'createdAt'])
+        && isValidId(data.claimId)
+        && data.claimCode is string && data.claimCode.size() >= 4 && data.claimCode.size() <= 32
+        && isValidId(data.noticeId)
+        && data.noticeTitle is string && data.noticeTitle.size() >= 1 && data.noticeTitle.size() <= 120
+        && data.createdAt is timestamp;
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['recipientPhoneHash', 'kind', 'noticeId', 'claimId', 'title', 'message', 'read', 'createdAt'])
+        && data.keys().hasOnly(['recipientPhoneHash', 'kind', 'noticeId', 'claimId', 'title', 'message', 'read', 'createdAt'])
+        && isValidSha256(data.recipientPhoneHash)
+        && data.kind in ['new_claim', 'claim_resubmitted', 'claim_approved', 'claim_rejected']
+        && isValidId(data.noticeId)
+        && isValidId(data.claimId)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 400
+        && data.read is bool
+        && data.createdAt is timestamp;
+    }
+
     function isValidReport(data) {
       return data.keys().hasAll(['targetType', 'targetId', 'reason', 'status', 'createdAt'])
         && data.keys().hasOnly(['targetType', 'targetId', 'reason', 'status', 'createdAt'])
@@ -218,7 +266,15 @@ service cloud.firestore {
         && isValidNoticeSecret(incoming())
         && incoming().createdAt == request.time
         && existsAfter(/databases/$(database)/documents/notices/$(incoming().noticeId));
-      allow update, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isValidSha256(tokenHash)
+        && isValidNoticeSecret(incoming())
+        && incoming().noticeId == existing().noticeId
+        && incoming().verificationQuestions == existing().verificationQuestions
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['reporterName', 'reporterWhatsApp'])
+      );
+      allow delete: if isAdmin();
     }
 
     match /claims/{claimId} {
@@ -292,6 +348,68 @@ service cloud.firestore {
         && isValidClaimHandover(incoming())
         && incoming().approvedAt == request.time
         && exists(/databases/$(database)/documents/claims/$(incoming().claimId));
+      allow delete: if isAdmin();
+    }
+
+    match /accounts/{phoneHash} {
+      allow get: if isValidSha256(phoneHash) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isValidSha256(phoneHash)
+        && isValidStudentAccount(incoming())
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidSha256(phoneHash)
+        && isValidStudentAccount(incoming())
+        && incoming().phoneNumber == existing().phoneNumber
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'pinHash', 'updatedAt']);
+      allow delete: if isAdmin() || isValidSha256(phoneHash);
+    }
+
+    match /accountVaults/{accessKey}/notices/{noticeId} {
+      allow get, list: if isValidSha256(accessKey) || isAdmin();
+      allow create: if isValidSha256(accessKey)
+        && isValidId(noticeId)
+        && isValidVaultNoticeEntry(incoming())
+        && incoming().noticeId == noticeId
+        && incoming().createdAt == request.time;
+      allow update: if isValidSha256(accessKey)
+        && isValidId(noticeId)
+        && isValidVaultNoticeEntry(incoming())
+        && incoming().noticeId == existing().noticeId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'managementToken', 'type']);
+      allow delete: if isValidSha256(accessKey) || isAdmin();
+    }
+
+    match /accountVaults/{accessKey}/claims/{claimId} {
+      allow get, list: if isValidSha256(accessKey) || isAdmin();
+      allow create: if isValidSha256(accessKey)
+        && isValidId(claimId)
+        && isValidVaultClaimEntry(incoming())
+        && incoming().claimId == claimId
+        && incoming().createdAt == request.time;
+      allow delete: if isValidSha256(accessKey) || isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow get: if isValidId(notificationId);
+      allow list: if isAdmin() || isValidSha256(existing().recipientPhoneHash);
+      allow create: if isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().read == false
+        && incoming().createdAt == request.time;
+      allow update: if isValidId(notificationId)
+        && isValidNotification(incoming())
+        && incoming().recipientPhoneHash == existing().recipientPhoneHash
+        && incoming().kind == existing().kind
+        && incoming().noticeId == existing().noticeId
+        && incoming().claimId == existing().claimId
+        && incoming().title == existing().title
+        && incoming().message == existing().message
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['read']);
       allow delete: if isAdmin();
     }
 

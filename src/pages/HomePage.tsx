@@ -109,9 +109,9 @@ export function HomePage() {
         <div className="flex items-center gap-3 shrink-0">
           <Link
             to="/report"
-            className="min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 transition-colors inline-flex items-center gap-2 whitespace-nowrap"
+            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4 shrink-0" />
             <span>Report Found or Lost</span>
           </Link>
         </div>
@@ -120,7 +120,7 @@ export function HomePage() {
       {/* Search & Filter Toolbar */}
       <section aria-label="Search and filters" className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="search"
@@ -134,7 +134,7 @@ export function HomePage() {
 
           {/* Interactive Type Segmented Control */}
           <div
-            className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl shrink-0 md:w-64"
+            className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl shrink-0 w-full md:w-64"
             role="group"
             aria-label="Filter by notice type"
           >
@@ -143,7 +143,7 @@ export function HomePage() {
                 key={t}
                 type="button"
                 onClick={() => setTypeFilter(t)}
-                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${
+                className={`min-h-[36px] px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${
                   typeFilter === t
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
@@ -155,8 +155,8 @@ export function HomePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="min-w-0">
             <label htmlFor="filter-category" className="sr-only">
               Category
             </label>
@@ -175,7 +175,7 @@ export function HomePage() {
             </select>
           </div>
 
-          <div>
+          <div className="min-w-0">
             <label htmlFor="filter-location" className="sr-only">
               Location
             </label>
@@ -194,34 +194,35 @@ export function HomePage() {
             </select>
           </div>
 
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label htmlFor="filter-date-range" className="sr-only">
-                Date range
-              </label>
-              <select
-                id="filter-date-range"
-                value={exactDate ? 'exact' : dateFilter}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'exact') return;
-                  setExactDate('');
-                  setDateFilter(val);
-                }}
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
-              >
-                <option value="all">Any Date</option>
-                <option value="7d">Last 7 Days</option>
-                <option value="30d">Last 30 Days</option>
-                {exactDate && <option value="exact">{exactDate}</option>}
-              </select>
-            </div>
+          <div className="min-w-0">
+            <label htmlFor="filter-date-range" className="sr-only">
+              Date range
+            </label>
+            <select
+              id="filter-date-range"
+              value={exactDate ? 'exact' : dateFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'exact') return;
+                setExactDate('');
+                setDateFilter(val);
+              }}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            >
+              <option value="all">Any Date</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              {exactDate && <option value="exact">{exactDate}</option>}
+            </select>
+          </div>
+
+          <div className="min-w-0">
             <input
               type="date"
               aria-label="Filter by exact date"
               value={exactDate}
               onChange={(e) => setExactDate(e.target.value)}
-              className="min-h-[44px] px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-700"
             />
           </div>
         </div>
