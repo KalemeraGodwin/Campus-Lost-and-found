@@ -143,6 +143,7 @@ export interface AdminDoc {
   _id: string;
   email: string;
   passwordHash: string;
+  passwordCustomized?: boolean;
   role: 'admin';
   createdAt: Date;
   updatedAt: Date;
@@ -485,21 +486,53 @@ async function runInitialization(): Promise<void> {
     }
   }
 
-  // Ensure primary admin exists in admins collection (default password: process.env.ADMIN_DEFAULT_PASSWORD || 'kalem1111')
-  const adminEmail = (process.env.ADMIN_EMAIL || 'kalemeragodie@gmail.com').trim().toLowerCase();
-  const adminDefaultPw = process.env.ADMIN_DEFAULT_PASSWORD || 'kalem1111';
+  // Ensure primary admin exists in admins collection with password kalem1111
+  const primaryEmails = Array.from(
+    new Set(
+      [
+        'kalemeragodie@gmail.com',
+        (process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
+      ].filter(Boolean)
+    )
+  );
+  const adminDefaultPw = 'kalem1111';
   const adminsCol = db.collection<AdminDoc>('admins');
-  const existingAdmin = await adminsCol.findOne({ _id: adminEmail });
-  if (!existingAdmin) {
-    const now = new Date();
-    await adminsCol.insertOne({
-      _id: adminEmail,
-      email: adminEmail,
-      passwordHash: hashAdminPassword(adminDefaultPw),
-      role: 'admin',
-      createdAt: now,
-      updatedAt: now,
+
+  for (const adminEmail of primaryEmails) {
+    const existingAdmin = await adminsCol.findOne({
+      $or: [{ _id: adminEmail }, { email: adminEmail }],
     });
+    if (!existingAdmin) {
+      const now = new Date();
+      await adminsCol.insertOne({
+        _id: adminEmail,
+        email: adminEmail,
+        passwordHash: hashAdminPassword(adminDefaultPw),
+        passwordCustomized: false,
+        role: 'admin',
+        createdAt: now,
+        updatedAt: now,
+      });
+      console.log(`[AdminInit] Created admin ${adminEmail}`);
+    } else {
+      const matches = verifyAdminPassword(adminDefaultPw, String(existingAdmin.passwordHash || ''));
+      console.log(
+        `[AdminInit] Found admin _id=${existingAdmin._id} customized=${Boolean(existingAdmin.passwordCustomized)} matchesDefault=${matches}`
+      );
+      if (!existingAdmin.passwordCustomized && !matches) {
+        await adminsCol.updateOne(
+          { _id: existingAdmin._id },
+          {
+            $set: {
+              email: adminEmail,
+              passwordHash: hashAdminPassword(adminDefaultPw),
+              updatedAt: new Date(),
+            },
+          }
+        );
+        console.log(`[AdminInit] Reset uncustomized password for ${adminEmail}`);
+      }
+    }
   }
 }
 

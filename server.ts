@@ -1464,13 +1464,15 @@ async function createApp() {
         return;
       }
       const adminsCol = await getCollection<AdminDoc>('admins');
-      const admin = await adminsCol.findOne({ _id: email });
-      if (!admin || !verifyAdminPassword(password, admin.passwordHash)) {
+      const admin = await adminsCol.findOne({
+        $or: [{ _id: email }, { email }],
+      });
+      if (!admin || !verifyAdminPassword(password, String(admin.passwordHash || ''))) {
         res.status(401).json({ error: 'Invalid admin email or password.' });
         return;
       }
-      const token = signAdminToken(admin.email);
-      res.json({ token, admin: { email: admin.email } });
+      const token = signAdminToken(admin.email || email);
+      res.json({ token, admin: { email: admin.email || email } });
     })
   );
 
@@ -1497,6 +1499,7 @@ async function createApp() {
         {
           $set: {
             passwordHash: hashAdminPassword(newPassword),
+            passwordCustomized: true,
             updatedAt: new Date(),
           },
         }

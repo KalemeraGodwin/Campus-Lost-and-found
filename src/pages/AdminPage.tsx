@@ -52,7 +52,7 @@ export function AdminPage() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Login Form
-  const [email, setEmail] = useState('kalemeragodie@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [signingIn, setSigningIn] = useState(false);
@@ -397,9 +397,10 @@ export function AdminPage() {
               id="admin-email"
               type="email"
               required
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@campus.ac.ug"
+              placeholder="Enter admin email"
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
@@ -412,6 +413,7 @@ export function AdminPage() {
               id="admin-password"
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
