@@ -1,5 +1,4 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { User } from 'firebase/auth';
 import {
   Ban,
   Building2,
@@ -11,7 +10,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  ShieldAlert,
   Trash2,
   UserCheck,
   X,
@@ -20,25 +18,22 @@ import { ClaimStatusIndicator, NoticeStatusIndicator } from '../components/Statu
 import { useAccount } from '../context/AccountContext';
 import {
   AdminDashboardData,
+  AdminUserSession,
   adminBanNumber,
   adminCreateInstitution,
   adminDeleteInstitution,
   adminFetchDashboardData,
   adminPurgeOldEvidence,
-  adminReloadUser,
   adminRemoveNotice,
   adminResolveReport,
-  adminSendVerificationEmail,
   adminSetOrUpdatePassword,
   adminSignInWithEmail,
-  adminSignInWithGoogle,
   adminSignOut,
   adminUnbanNumber,
   adminUpdateInstitution,
   extractFriendlyError,
   subscribeAdminAuth,
-  verifyAdminAuthorization,
-} from '../services/firebase';
+} from '../services/api';
 import { CampusInstitution } from '../types';
 import { formatShortDate, getEffectiveNoticeStatus } from '../utils/cryptoAndValidation';
 
@@ -53,9 +48,8 @@ export function AdminPage() {
     upsertInstitutionLocal,
     removeInstitutionLocal,
   } = useAccount();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AdminUserSession | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [isAuthorizedAdmin, setIsAuthorizedAdmin] = useState(false);
 
   // Login Form
   const [email, setEmail] = useState('kalemeragodie@gmail.com');
@@ -95,7 +89,6 @@ export function AdminPage() {
   const [newAdminPassword, setNewAdminPassword] = useState('');
   const [confirmAdminPassword, setConfirmAdminPassword] = useState('');
   const [savingAdminPassword, setSavingAdminPassword] = useState(false);
-  const [verificationNote, setVerificationNote] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setDataLoading(true);
@@ -111,16 +104,11 @@ export function AdminPage() {
   }, [refreshInstitutions]);
 
   useEffect(() => {
-    const unsub = subscribeAdminAuth(async (currentUser) => {
+    const unsub = subscribeAdminAuth((currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        const ok = await verifyAdminAuthorization(currentUser);
-        setIsAuthorizedAdmin(ok);
-        if (ok) {
-          loadData();
-        }
+        loadData();
       } else {
-        setIsAuthorizedAdmin(false);
         setData(null);
       }
       setAuthLoading(false);
@@ -134,33 +122,6 @@ export function AdminPage() {
     setSigningIn(true);
     try {
       await adminSignInWithEmail(email, password);
-    } catch (err) {
-      const msg = extractFriendlyError(err);
-      if (msg.includes('operation-not-allowed')) {
-        setLoginError(
-          'Email/Password sign-in is not yet enabled in Firebase Console -> Authentication -> Sign-in method. Enable Email/Password there, or click "Sign In with Google" below first.'
-        );
-      } else if (
-        msg.includes('invalid-credential') ||
-        msg.includes('user-not-found') ||
-        msg.includes('wrong-password')
-      ) {
-        setLoginError(
-          'No matching Email/Password credential found in Firebase Authentication. Click "Sign In with Google" below using kalemeragodie@gmail.com, then set your Email/Password in the "Admin Password" tab.'
-        );
-      } else {
-        setLoginError(msg);
-      }
-    } finally {
-      setSigningIn(false);
-    }
-  }
-
-  async function handleGoogleLogin() {
-    setLoginError(null);
-    setSigningIn(true);
-    try {
-      await adminSignInWithGoogle();
     } catch (err) {
       setLoginError(extractFriendlyError(err));
     } finally {
@@ -400,45 +361,36 @@ export function AdminPage() {
     }
     setSavingAdminPassword(true);
     try {
-      const mode = await adminSetOrUpdatePassword(newAdminPassword);
+      await adminSetOrUpdatePassword(newAdminPassword);
       setNewAdminPassword('');
       setConfirmAdminPassword('');
-      setActionMessage(
-        mode === 'linked'
-          ? `Email/Password login is now linked to ${user?.email}. You can now sign in with Email + Password as well as Google.`
-          : `Updated the Firebase Auth login password for ${user?.email}.`
-      );
+      setActionMessage(`Updated the administrator password for ${user?.email} in MongoDB.`);
     } catch (err) {
-      const msg = extractFriendlyError(err);
-      if (msg.includes('operation-not-allowed')) {
-        setActionError(
-          'Enable "Email/Password" in Firebase Console -> Authentication -> Sign-in method first, then save your password again.'
-        );
-      } else {
-        setActionError(msg);
-      }
+      setActionError(extractFriendlyError(err));
     } finally {
       setSavingAdminPassword(false);
     }
   }
 
   if (authLoading) {
-    return <div className="max-w-md mx-auto h-64 bg-white rounded-2xl border border-slate-200 animate-pulse" />;
+    return (
+      <div className="max-w-md mx-auto h-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 animate-pulse" />
+    );
   }
 
   if (!user) {
     return (
       <div className="max-w-md mx-auto space-y-5">
         <div className="space-y-1">
-          <h1 className="font-display text-2xl font-bold text-slate-900">Admin Console Login</h1>
-          <p className="text-sm text-slate-600">
+          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-slate-100">Admin Console Login</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-300">
             Sign in with your authorized campus administrator account to manage institutions, campus locations, notices, and banned numbers.
           </p>
         </div>
 
-        <form onSubmit={handleEmailLogin} className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+        <form onSubmit={handleEmailLogin} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-4">
           <div className="space-y-1.5">
-            <label htmlFor="admin-email" className="block text-xs font-semibold text-slate-700">
+            <label htmlFor="admin-email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Admin Email
             </label>
             <input
@@ -448,12 +400,12 @@ export function AdminPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@campus.ac.ug"
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="admin-password" className="block text-xs font-semibold text-slate-700">
+            <label htmlFor="admin-password" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Password
             </label>
             <input
@@ -463,12 +415,12 @@ export function AdminPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter password"
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
 
           {loginError && (
-            <p className="text-xs font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3" role="alert">
+            <p className="text-xs font-medium text-rose-700 dark:text-rose-200 bg-rose-50 dark:bg-rose-950/45 border border-rose-200 dark:border-rose-800/70 rounded-xl p-3" role="alert">
               {loginError}
             </p>
           )}
@@ -476,109 +428,11 @@ export function AdminPage() {
           <button
             type="submit"
             disabled={signingIn}
-            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
+            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-sm font-semibold hover:bg-slate-800 dark:hover:bg-white disabled:opacity-50"
           >
-            {signingIn ? 'Signing in...' : 'Sign In with Email'}
+            {signingIn ? 'Signing in...' : 'Sign In to Admin Console'}
           </button>
-
-          <div className="relative py-2">
-            <div className="border-t border-slate-200" />
-            <span className="bg-white px-2 text-xs text-slate-400 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-              or
-            </span>
-          </div>
-
-          <button
-            type="button"
-            disabled={signingIn}
-            onClick={handleGoogleLogin}
-            className="w-full min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50"
-          >
-            Sign In with Google
-          </button>
-
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 leading-relaxed">
-            <strong>How to enable Email/Password login:</strong> Click <em>Sign In with Google</em> using <code className="font-mono">kalemeragodie@gmail.com</code>, enable <em>Email/Password</em> in Firebase Console &rarr; Authentication &rarr; Sign-in method, and set your password inside the <strong>Admin Password</strong> tab.
-          </div>
         </form>
-      </div>
-    );
-  }
-
-  if (!isAuthorizedAdmin) {
-    const isUnverifiedPrimaryAdmin = user.email === 'kalemeragodie@gmail.com' && !user.emailVerified;
-    return (
-      <div className="max-w-md mx-auto bg-white rounded-2xl border border-slate-200 p-6 space-y-4 text-center">
-        <ShieldAlert className="w-10 h-10 text-rose-700 mx-auto" />
-        <h1 className="font-display text-xl font-bold text-slate-900">Admin Access Required</h1>
-        <p className="text-sm text-slate-600">
-          {isUnverifiedPrimaryAdmin ? (
-            <>
-              Signed in as <span className="font-mono text-xs">{user.email}</span>, but your email address is not verified yet. Verify your email or sign in with Google to access admin controls.
-            </>
-          ) : (
-            <>
-              Signed in as <span className="font-mono text-xs">{user.email}</span>, which is not listed in the <code className="font-mono text-xs">admins</code> collection (or email is unverified).
-            </>
-          )}
-        </p>
-        <p className="text-xs text-slate-500">
-          UID: <code className="font-mono select-all">{user.uid}</code>
-        </p>
-
-        {verificationNote && (
-          <p className="text-xs font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-            {verificationNote}
-          </p>
-        )}
-
-        <div className="flex flex-col gap-2">
-          {isUnverifiedPrimaryAdmin && (
-            <>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await adminSendVerificationEmail();
-                    setVerificationNote(
-                      'Verification email sent to kalemeragodie@gmail.com. Open the link in your inbox, then click "Recheck Verification" below.'
-                    );
-                  } catch (err) {
-                    setVerificationNote(extractFriendlyError(err));
-                  }
-                }}
-                className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
-              >
-                Send Verification Email
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const reloaded = await adminReloadUser();
-                  if (reloaded) {
-                    const ok = await verifyAdminAuthorization(reloaded);
-                    setIsAuthorizedAdmin(ok);
-                    if (ok) {
-                      loadData();
-                    } else {
-                      setVerificationNote('Email still appears unverified. Please click the verification link first.');
-                    }
-                  }
-                }}
-                className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 text-slate-800 text-sm font-semibold hover:bg-slate-50"
-              >
-                Recheck Verification
-              </button>
-            </>
-          )}
-          <button
-            type="button"
-            onClick={() => adminSignOut()}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-semibold"
-          >
-            Sign Out
-          </button>
-        </div>
       </div>
     );
   }
@@ -587,10 +441,10 @@ export function AdminPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             Admin Moderation Console
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Signed in as {user.email}
           </p>
         </div>
@@ -600,15 +454,15 @@ export function AdminPage() {
             type="button"
             disabled={purging}
             onClick={handlePurgeEvidence}
-            className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+            className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
           >
-            <Trash2 className="w-3.5 h-3.5 text-rose-700" />
+            <Trash2 className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
             <span>{purging ? 'Purging...' : 'Purge >30d Evidence'}</span>
           </button>
           <button
             type="button"
             onClick={() => loadData()}
-            className="min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
+            className="min-h-[40px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             <span>Refresh</span>
@@ -616,7 +470,7 @@ export function AdminPage() {
           <button
             type="button"
             onClick={() => adminSignOut()}
-            className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 inline-flex items-center gap-1.5"
+            className="min-h-[40px] px-3 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-white inline-flex items-center gap-1.5"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Sign Out</span>
@@ -625,18 +479,18 @@ export function AdminPage() {
       </div>
 
       {actionMessage && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/50 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
           {actionMessage}
         </div>
       )}
       {actionError && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+        <div className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-4 py-3 text-sm text-rose-800 dark:text-rose-200" role="alert">
           {actionError}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex overflow-x-auto gap-1 p-1 bg-slate-100 rounded-xl">
+      <div className="flex overflow-x-auto gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
         {(
           [
             { id: 'institutions', label: `Institutions & Locations (${institutions.length})` },
@@ -656,8 +510,8 @@ export function AdminPage() {
             onClick={() => setActiveTab(tab.id)}
             className={`min-h-[40px] px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
               activeTab === tab.id
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+                ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
             }`}
           >
             {tab.label}
@@ -666,30 +520,20 @@ export function AdminPage() {
       </div>
 
       {activeTab === 'security' ? (
-        <div className="max-w-xl bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
+        <div className="max-w-xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5">
           <div className="space-y-1">
-            <h2 className="font-display text-lg font-bold text-slate-900 flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-emerald-700" />
-              <span>Set or Update Admin Password</span>
+            <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <KeyRound className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+              <span>Update Admin Password</span>
             </h2>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Attach or update an Email/Password credential on your Firebase Auth account (<span className="font-mono">{user.email}</span>) so you can sign in to the Admin Console with email and password.
-            </p>
-          </div>
-
-          <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 text-xs text-slate-700 space-y-1">
-            <p>
-              <strong>Linked Sign-In Methods:</strong>{' '}
-              {user.providerData.map((p) => p.providerId).join(', ') || 'none'}
-            </p>
-            <p className="text-slate-500">
-              Requires the <em>Email/Password</em> sign-in provider to be enabled under Firebase Console &rarr; Authentication &rarr; Sign-in method.
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Update the password for your administrator account (<span className="font-mono">{user.email}</span>) stored securely in MongoDB.
             </p>
           </div>
 
           <form onSubmit={handleSaveAdminPassword} className="space-y-4">
             <div className="space-y-1.5">
-              <label htmlFor="new-admin-pw" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="new-admin-pw" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 New Admin Password (min. 6 characters)
               </label>
               <input
@@ -700,12 +544,12 @@ export function AdminPage() {
                 value={newAdminPassword}
                 onChange={(e) => setNewAdminPassword(e.target.value)}
                 placeholder="Enter new password"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="confirm-admin-pw" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="confirm-admin-pw" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Confirm New Password
               </label>
               <input
@@ -716,20 +560,16 @@ export function AdminPage() {
                 value={confirmAdminPassword}
                 onChange={(e) => setConfirmAdminPassword(e.target.value)}
                 placeholder="Re-enter password"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
             </div>
 
             <button
               type="submit"
               disabled={savingAdminPassword}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50"
+              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50"
             >
-              {savingAdminPassword
-                ? 'Saving Password...'
-                : user.providerData.some((p) => p.providerId === 'password')
-                  ? 'Update Admin Password'
-                  : 'Link & Set Admin Password'}
+              {savingAdminPassword ? 'Saving Password...' : 'Update Admin Password'}
             </button>
           </form>
         </div>
@@ -738,21 +578,21 @@ export function AdminPage() {
           {/* Create Institution + Locations Form */}
           <form
             onSubmit={handleCreateInstitution}
-            className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4"
+            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4"
           >
             <div className="space-y-1">
-              <h2 className="font-display text-lg font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-emerald-700" />
+              <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span>Add Campus Institution &amp; Possible Locations</span>
               </h2>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 Students select from these institutions when creating an account, and only see notices and campus locations attached to their institution.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label htmlFor="new-inst-name" className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="new-inst-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Institution / University Name
                 </label>
                 <input
@@ -764,12 +604,12 @@ export function AdminPage() {
                   value={newInstName}
                   onChange={(e) => setNewInstName(e.target.value)}
                   placeholder="e.g. Makerere University Business School"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="new-inst-loc" className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="new-inst-loc" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Add Possible Campus Locations (comma-separated or one at a time)
                 </label>
                 <div className="flex gap-2">
@@ -785,12 +625,12 @@ export function AdminPage() {
                       }
                     }}
                     placeholder="e.g. Main Library, Block A, Security Desk"
-                    className="flex-1 min-w-0 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="flex-1 min-w-0 min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                   <button
                     type="button"
                     onClick={addDraftLocation}
-                    className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100 shrink-0 inline-flex items-center gap-1"
+                    className="min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 inline-flex items-center gap-1"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add</span>
@@ -801,16 +641,16 @@ export function AdminPage() {
 
             {newInstLocations.length > 0 && (
               <div className="space-y-1.5">
-                <span className="block text-xs font-semibold text-slate-600">
+                <span className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
                   Staged Locations ({newInstLocations.length})
                 </span>
                 <div className="flex flex-wrap gap-2">
                   {newInstLocations.map((loc) => (
                     <span
                       key={loc}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 border border-slate-200 text-xs font-medium text-slate-800"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200"
                     >
-                      <MapPin className="w-3 h-3 text-emerald-700" />
+                      <MapPin className="w-3 h-3 text-emerald-700 dark:text-emerald-400" />
                       <span>{loc}</span>
                       <button
                         type="button"
@@ -818,7 +658,7 @@ export function AdminPage() {
                           setNewInstLocations((prev) => prev.filter((item) => item !== loc))
                         }
                         aria-label={`Remove ${loc}`}
-                        className="text-slate-400 hover:text-rose-700"
+                        className="text-slate-400 dark:text-slate-500 hover:text-rose-700 dark:hover:text-rose-400"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -829,12 +669,12 @@ export function AdminPage() {
             )}
 
             {createInstError && (
-              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800" role="alert">
+              <p className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-3.5 py-2.5 text-xs font-medium text-rose-800 dark:text-rose-200" role="alert">
                 {createInstError}
               </p>
             )}
             {createInstSuccess && (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs font-medium text-emerald-800">
+              <p className="rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/50 px-3.5 py-2.5 text-xs font-medium text-emerald-800 dark:text-emerald-200">
                 {createInstSuccess}
               </p>
             )}
@@ -843,7 +683,7 @@ export function AdminPage() {
               <button
                 type="submit"
                 disabled={creatingInst}
-                className="min-h-[44px] px-5 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 inline-flex items-center gap-1.5"
+                className="min-h-[44px] px-5 py-2 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50 inline-flex items-center gap-1.5"
               >
                 <Plus className="w-4 h-4" />
                 <span>{creatingInst ? 'Saving Institution...' : 'Create Institution'}</span>
@@ -855,37 +695,37 @@ export function AdminPage() {
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="font-display text-lg font-bold text-slate-900">
+                <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">
                   Added Campus Institutions ({institutions.length})
                 </h2>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
                   View all configured institutions, edit their names, or update their campus locations.
                 </p>
               </div>
               {institutions.length > 0 && (
                 <div className="relative w-full sm:w-64">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="search"
                     value={instSearch}
                     onChange={(e) => setInstSearch(e.target.value)}
                     placeholder="Filter institutions or locations..."
-                    className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 bg-white text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full min-h-[38px] pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                 </div>
               )}
             </div>
 
             {institutionsError && (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <div className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-4 py-3 text-sm text-rose-800 dark:text-rose-200">
                 Could not load institutions: {institutionsError}
               </div>
             )}
 
             {institutionsLoading ? (
-              <div className="h-36 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+              <div className="h-36 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 animate-pulse" />
             ) : institutions.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 text-sm text-slate-500 dark:text-slate-400">
                 No campus institutions configured yet. Create your first institution above.
               </div>
             ) : (
@@ -901,7 +741,7 @@ export function AdminPage() {
 
                 if (visibleInstitutions.length === 0) {
                   return (
-                    <div className="bg-white rounded-2xl border border-slate-200 p-6 text-sm text-slate-500">
+                    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 text-sm text-slate-500 dark:text-slate-400">
                       No added institutions match "{instSearch}".
                     </div>
                   );
@@ -919,19 +759,19 @@ export function AdminPage() {
                       <form
                         key={inst.id}
                         onSubmit={(e) => handleSaveEditInstitution(inst, e)}
-                        className="bg-white rounded-2xl border-2 border-emerald-700 p-4 sm:p-6 space-y-5"
+                        className="bg-white dark:bg-slate-900 rounded-2xl border-2 border-emerald-700 dark:border-emerald-500 p-4 sm:p-6 space-y-5"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
                           <div>
-                            <h3 className="font-display text-base font-bold text-slate-900">
+                            <h3 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                               Edit Institution &amp; Locations
                             </h3>
-                            <p className="text-xs text-slate-400 font-mono">{inst.id}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">{inst.id}</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => setEditingInstId(null)}
-                            className="self-start sm:self-auto min-h-[34px] px-3 py-1 rounded-xl border border-slate-300 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                            className="self-start sm:self-auto min-h-[34px] px-3 py-1 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                           >
                             Cancel
                           </button>
@@ -940,7 +780,7 @@ export function AdminPage() {
                         <div className="space-y-1.5">
                           <label
                             htmlFor={`edit-inst-name-${inst.id}`}
-                            className="block text-xs font-semibold text-slate-700"
+                            className="block text-xs font-semibold text-slate-700 dark:text-slate-300"
                           >
                             Institution Name
                           </label>
@@ -952,16 +792,16 @@ export function AdminPage() {
                             maxLength={100}
                             value={editInstName}
                             onChange={(e) => setEditInstName(e.target.value)}
-                            className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                            className="w-full min-h-[42px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm font-semibold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                           />
                         </div>
 
                         <div className="space-y-2.5">
-                          <span className="block text-xs font-semibold text-slate-700">
+                          <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                             Campus Locations ({editInstLocations.length})
                           </span>
                           {editInstLocations.length === 0 ? (
-                            <p className="text-xs text-slate-500">
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
                               No locations listed yet. Add locations below.
                             </p>
                           ) : (
@@ -980,7 +820,7 @@ export function AdminPage() {
                                         prev.map((item, i) => (i === idx ? val : item))
                                       );
                                     }}
-                                    className="flex-1 min-w-0 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                                    className="flex-1 min-w-0 min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                                   />
                                   <button
                                     type="button"
@@ -990,7 +830,7 @@ export function AdminPage() {
                                       )
                                     }
                                     aria-label={`Remove location ${loc}`}
-                                    className="min-h-[38px] px-2.5 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 shrink-0"
+                                    className="min-h-[38px] px-2.5 rounded-xl border border-rose-200 dark:border-rose-800/70 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 shrink-0"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1011,12 +851,12 @@ export function AdminPage() {
                                 }
                               }}
                               placeholder="Add more locations (comma-separated or one at a time)..."
-                              className="flex-1 min-w-0 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                              className="flex-1 min-w-0 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                             />
                             <button
                               type="button"
                               onClick={addEditLocationDraft}
-                              className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100 shrink-0 inline-flex items-center gap-1"
+                              className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0 inline-flex items-center gap-1"
                             >
                               <Plus className="w-3.5 h-3.5" />
                               <span>Add</span>
@@ -1024,18 +864,18 @@ export function AdminPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                           <button
                             type="button"
                             onClick={() => setEditingInstId(null)}
-                            className="min-h-[40px] px-4 py-2 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                            className="min-h-[40px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                           >
                             Cancel
                           </button>
                           <button
                             type="submit"
                             disabled={isBusy}
-                            className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-50"
+                            className="min-h-[40px] px-5 py-2 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50"
                           >
                             {isBusy ? 'Saving Changes...' : 'Save Changes'}
                           </button>
@@ -1047,22 +887,22 @@ export function AdminPage() {
                   return (
                     <section
                       key={inst.id}
-                      className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-4"
+                      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-6 space-y-4"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
                         <div className="space-y-1 min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="font-display text-lg font-bold text-slate-900 break-words">
+                            <h3 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100 break-words">
                               {inst.name}
                             </h3>
-                            <span className="text-xs text-slate-500 tabular-nums">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                               · {inst.locations.length} campus location{inst.locations.length === 1 ? '' : 's'}
                             </span>
-                            <span className="text-xs text-slate-500 tabular-nums">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                               · {noticeCount} notice{noticeCount === 1 ? '' : 's'}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 font-mono">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 font-mono">
                             {inst.id} · Updated {formatShortDate(inst.updatedAt)}
                           </p>
                         </div>
@@ -1071,9 +911,9 @@ export function AdminPage() {
                           <button
                             type="button"
                             onClick={() => startEditingInstitution(inst)}
-                            className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+                            className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
                           >
-                            <Edit3 className="w-3.5 h-3.5 text-emerald-700" />
+                            <Edit3 className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                             <span>Edit Institution</span>
                           </button>
                           {isConfirmDelete ? (
@@ -1082,14 +922,14 @@ export function AdminPage() {
                                 type="button"
                                 disabled={isBusy}
                                 onClick={() => handleDeleteInstitution(inst)}
-                                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-700 text-white text-xs font-semibold hover:bg-rose-800"
+                                className="min-h-[36px] px-3 py-1.5 rounded-xl bg-rose-700 dark:bg-rose-600 text-white text-xs font-semibold hover:bg-rose-800 dark:hover:bg-rose-500"
                               >
                                 Confirm Delete
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setConfirmDeleteInstId(null)}
-                                className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-600"
+                                className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                               >
                                 Cancel
                               </button>
@@ -1098,7 +938,7 @@ export function AdminPage() {
                             <button
                               type="button"
                               onClick={() => setConfirmDeleteInstId(inst.id)}
-                              className="min-h-[36px] px-3 py-1.5 rounded-xl border border-rose-200 text-xs font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1"
+                              className="min-h-[36px] px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-800/70 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 inline-flex items-center gap-1"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                               <span>Delete</span>
@@ -1110,7 +950,7 @@ export function AdminPage() {
                       {/* Locations list */}
                       <div className="space-y-3">
                         {inst.locations.length === 0 ? (
-                          <p className="text-xs text-slate-500">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
                             No campus locations added yet. Add locations below so reporters at {inst.name} can select them.
                           </p>
                         ) : (
@@ -1118,16 +958,16 @@ export function AdminPage() {
                             {inst.locations.map((loc) => (
                               <span
                                 key={loc}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-800"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-800 dark:text-slate-200"
                               >
-                                <MapPin className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                                <MapPin className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400 shrink-0" />
                                 <span>{loc}</span>
                                 <button
                                   type="button"
                                   disabled={isBusy}
                                   onClick={() => handleRemoveLocationFromInstitution(inst, loc)}
                                   aria-label={`Remove ${loc} from ${inst.name}`}
-                                  className="ml-0.5 text-slate-400 hover:text-rose-700 disabled:opacity-40"
+                                  className="ml-0.5 text-slate-400 dark:text-slate-500 hover:text-rose-700 dark:hover:text-rose-400 disabled:opacity-40"
                                 >
                                   <X className="w-3.5 h-3.5" />
                                 </button>
@@ -1149,12 +989,12 @@ export function AdminPage() {
                               setLocationInputs((prev) => ({ ...prev, [inst.id]: e.target.value }))
                             }
                             placeholder={`Add new location at ${inst.name} (comma-separated supported)...`}
-                            className="flex-1 min-w-0 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                            className="flex-1 min-w-0 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs sm:text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                           />
                           <button
                             type="submit"
                             disabled={isBusy}
-                            className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shrink-0"
+                            className="min-h-[40px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-white disabled:opacity-50 inline-flex items-center justify-center gap-1.5 shrink-0"
                           >
                             <Plus className="w-3.5 h-3.5" />
                             <span>Add Location</span>
@@ -1169,14 +1009,14 @@ export function AdminPage() {
           </div>
         </div>
       ) : dataLoading || !data ? (
-        <div className="h-48 bg-white rounded-2xl border border-slate-200 animate-pulse" />
+        <div className="h-48 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 animate-pulse" />
       ) : (
         <>
           {/* Tab 1: All Notices */}
           {activeTab === 'notices' && (
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800">
               {data.notices.length === 0 ? (
-                <p className="p-6 text-sm text-slate-500">No notices recorded.</p>
+                <p className="p-6 text-sm text-slate-500 dark:text-slate-400">No notices recorded.</p>
               ) : (
                 data.notices.map((n) => {
                   const contact = data.noticeContacts[n.id];
@@ -1188,16 +1028,16 @@ export function AdminPage() {
                     >
                       <div className="space-y-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-semibold uppercase text-slate-600">{n.type}</span>
-                          <span className="text-slate-300">·</span>
+                          <span className="font-semibold uppercase text-slate-600 dark:text-slate-300">{n.type}</span>
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
                           <NoticeStatusIndicator status={eff} />
-                          <span className="text-slate-300">·</span>
-                          <span className="font-medium text-emerald-700">{n.institutionName}</span>
-                          <span className="text-slate-300">·</span>
-                          <span className="text-slate-500 tabular-nums">{formatShortDate(n.createdAt)}</span>
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
+                          <span className="font-medium text-emerald-700 dark:text-emerald-400">{n.institutionName}</span>
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
+                          <span className="text-slate-500 dark:text-slate-400 tabular-nums">{formatShortDate(n.createdAt)}</span>
                         </div>
-                        <p className="font-semibold text-sm text-slate-900 break-words">{n.title}</p>
-                        <p className="text-xs text-slate-500 break-words">
+                        <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 break-words">{n.title}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
                           {n.location} · ID: <code className="font-mono break-all">{n.id}</code>
                           {contact && (
                             <>
@@ -1221,9 +1061,9 @@ export function AdminPage() {
                               setActionMessage(`Banned ${contact.reporterWhatsApp}`);
                               await loadData();
                             }}
-                            className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1"
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1"
                           >
-                            <Ban className="w-3.5 h-3.5 text-rose-700" />
+                            <Ban className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
                             <span>Ban Reporter</span>
                           </button>
                         )}
@@ -1235,7 +1075,7 @@ export function AdminPage() {
                               setActionMessage(`Removed notice "${n.title}".`);
                               await loadData();
                             }}
-                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-700 text-white text-xs font-semibold hover:bg-rose-800"
+                            className="min-h-[38px] px-3 py-1.5 rounded-xl bg-rose-700 dark:bg-rose-600 text-white text-xs font-semibold hover:bg-rose-800 dark:hover:bg-rose-500"
                           >
                             Remove Spam
                           </button>
@@ -1250,9 +1090,9 @@ export function AdminPage() {
 
           {/* Tab 2: All Claims */}
           {activeTab === 'claims' && (
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800">
               {data.claims.length === 0 ? (
-                <p className="p-6 text-sm text-slate-500">No claims recorded.</p>
+                <p className="p-6 text-sm text-slate-500 dark:text-slate-400">No claims recorded.</p>
               ) : (
                 data.claims.map((c) => (
                   <div
@@ -1262,19 +1102,19 @@ export function AdminPage() {
                     <div className="space-y-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-xs">
                         <ClaimStatusIndicator status={c.status} />
-                        <span className="text-slate-300">·</span>
-                        <span className="text-slate-500 tabular-nums">
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums">
                           {formatShortDate(c.createdAt)}
                         </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="text-slate-500 tabular-nums">
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums">
                           {c.evidenceUrls.length} evidence file(s)
                         </span>
                       </div>
-                      <p className="font-semibold text-sm text-slate-900 break-words">
+                      <p className="font-semibold text-sm text-slate-900 dark:text-slate-100 break-words">
                         Claim by {c.claimantName}
                       </p>
-                      <p className="text-xs text-slate-500 break-words">
+                      <p className="text-xs text-slate-500 dark:text-slate-400 break-words">
                         Claim ID: <code className="font-mono break-all">{c.id}</code> · Notice:{' '}
                         <code className="font-mono break-all">{c.noticeId}</code>
                         {c.claimantWhatsApp && (
@@ -1297,9 +1137,9 @@ export function AdminPage() {
                           setActionMessage(`Banned ${c.claimantWhatsApp}`);
                           await loadData();
                         }}
-                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 shrink-0"
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
                       >
-                        <Ban className="w-3.5 h-3.5 text-rose-700" />
+                        <Ban className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
                         <span>Ban Claimant</span>
                       </button>
                     )}
@@ -1311,9 +1151,9 @@ export function AdminPage() {
 
           {/* Tab 3: Abuse Reports */}
           {activeTab === 'reports' && (
-            <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800">
               {data.reports.length === 0 ? (
-                <p className="p-6 text-sm text-slate-500">No abuse reports submitted.</p>
+                <p className="p-6 text-sm text-slate-500 dark:text-slate-400">No abuse reports submitted.</p>
               ) : (
                 data.reports.map((r) => (
                   <div
@@ -1324,18 +1164,18 @@ export function AdminPage() {
                       <div className="flex items-center gap-2 text-xs">
                         <span
                           className={`font-semibold ${
-                            r.status === 'open' ? 'text-rose-700' : 'text-emerald-700'
+                            r.status === 'open' ? 'text-rose-700 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'
                           }`}
                         >
                           {r.status === 'open' ? 'Open Report' : 'Resolved'}
                         </span>
-                        <span className="text-slate-300">·</span>
-                        <span className="uppercase font-medium text-slate-600">{r.targetType}</span>
-                        <span className="text-slate-300">·</span>
-                        <span className="text-slate-500 tabular-nums">{formatShortDate(r.createdAt)}</span>
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <span className="uppercase font-medium text-slate-600 dark:text-slate-300">{r.targetType}</span>
+                        <span className="text-slate-300 dark:text-slate-700">·</span>
+                        <span className="text-slate-500 dark:text-slate-400 tabular-nums">{formatShortDate(r.createdAt)}</span>
                       </div>
-                      <p className="text-sm font-medium text-slate-900">{r.reason}</p>
-                      <p className="text-xs text-slate-500">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{r.reason}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
                         Target ID: <code className="font-mono">{r.targetId}</code>
                       </p>
                     </div>
@@ -1348,7 +1188,7 @@ export function AdminPage() {
                           setActionMessage('Report marked as resolved.');
                           await loadData();
                         }}
-                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 inline-flex items-center gap-1.5 shrink-0"
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 inline-flex items-center gap-1.5 shrink-0"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Resolve</span>
@@ -1365,10 +1205,10 @@ export function AdminPage() {
             <div className="space-y-4">
               <form
                 onSubmit={handleBanSubmit}
-                className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end"
+                className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end"
               >
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-slate-700">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     WhatsApp Number (+256...)
                   </label>
                   <input
@@ -1377,11 +1217,11 @@ export function AdminPage() {
                     value={banPhoneInput}
                     onChange={(e) => setBanPhoneInput(e.target.value)}
                     placeholder="+256772123456"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-xs font-semibold text-slate-700">Reason</label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Reason</label>
                   <input
                     type="text"
                     required
@@ -1389,20 +1229,20 @@ export function AdminPage() {
                     value={banReasonInput}
                     onChange={(e) => setBanReasonInput(e.target.value)}
                     placeholder="Repeated false claims or spam"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                 </div>
                 <button
                   type="submit"
-                  className="min-h-[44px] px-4 py-2 rounded-xl bg-rose-700 text-white text-sm font-semibold hover:bg-rose-800"
+                  className="min-h-[44px] px-4 py-2 rounded-xl bg-rose-700 dark:bg-rose-600 text-white text-sm font-semibold hover:bg-rose-800 dark:hover:bg-rose-500"
                 >
                   Ban Number
                 </button>
               </form>
 
-              <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-200 dark:divide-slate-800">
                 {data.bannedNumbers.length === 0 ? (
-                  <p className="p-6 text-sm text-slate-500">No numbers currently banned.</p>
+                  <p className="p-6 text-sm text-slate-500 dark:text-slate-400">No numbers currently banned.</p>
                 ) : (
                   data.bannedNumbers.map((b) => (
                     <div
@@ -1410,10 +1250,10 @@ export function AdminPage() {
                       className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4"
                     >
                       <div className="space-y-0.5 min-w-0">
-                        <p className="font-mono text-sm font-semibold text-slate-900">
+                        <p className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">
                           {b.phoneNumber}
                         </p>
-                        <p className="text-xs text-slate-600 break-words">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 break-words">
                           {b.reason} · Banned {formatShortDate(b.bannedAt)}
                         </p>
                       </div>
@@ -1424,9 +1264,9 @@ export function AdminPage() {
                           setActionMessage(`Unbanned ${b.phoneNumber}.`);
                           await loadData();
                         }}
-                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1.5"
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
                       >
-                        <UserCheck className="w-3.5 h-3.5 text-emerald-700" />
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                         <span>Unban</span>
                       </button>
                     </div>

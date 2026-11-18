@@ -14,7 +14,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useAccount } from '../context/AccountContext';
-import { createNotice, extractFriendlyError } from '../services/firebase';
+import { createNotice, extractFriendlyError } from '../services/api';
 import { CATEGORIES, NoticeType, VerificationQuestion } from '../types';
 import { formatUgPhoneDisplay, isValidUgPhone, normalizeUgPhone } from '../utils/cryptoAndValidation';
 import { saveManagedNotice } from '../utils/localStorageStore';
@@ -226,17 +226,17 @@ export function ReportItemPage() {
     return (
       <div className="max-w-md mx-auto space-y-6">
         <div className="space-y-1.5">
-          <p className="text-xs font-semibold text-emerald-700">Step 1 · Account Required</p>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">Step 1 · Account Required</p>
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             Create an Account to Report an Item
           </h1>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Sign up under your campus institution with your Name and Ugandan WhatsApp number. Once signed in, you can report items anytime and receive alerts for your campus.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5">
+          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <button
               type="button"
               onClick={() => {
@@ -245,8 +245,8 @@ export function ReportItemPage() {
               }}
               className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 authMode === 'register'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               Create Account
@@ -259,8 +259,8 @@ export function ReportItemPage() {
               }}
               className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 authMode === 'login'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               Sign In
@@ -271,7 +271,7 @@ export function ReportItemPage() {
             {authMode === 'register' && (
               <>
                 <div className="space-y-1.5">
-                  <label htmlFor="gate-name" className="block text-xs font-semibold text-slate-700">
+                  <label htmlFor="gate-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Full Name
                   </label>
                   <input
@@ -283,12 +283,12 @@ export function ReportItemPage() {
                     value={authName}
                     onChange={(e) => setAuthName(e.target.value)}
                     placeholder="e.g. Grace Namukasa"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="gate-institution" className="block text-xs font-semibold text-slate-700">
+                  <label htmlFor="gate-institution" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Campus Institution
                   </label>
                   <select
@@ -297,7 +297,7 @@ export function ReportItemPage() {
                     value={authInstitutionId}
                     onChange={(e) => setAuthInstitutionId(e.target.value)}
                     disabled={institutionsLoading || institutions.length === 0}
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   >
                     {institutions.length === 0 ? (
                       <option value="">
@@ -316,7 +316,7 @@ export function ReportItemPage() {
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="gate-phone" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="gate-phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Ugandan WhatsApp Number
               </label>
               <input
@@ -327,15 +327,15 @@ export function ReportItemPage() {
                 onChange={(e) => setAuthPhone(e.target.value)}
                 onBlur={() => setAuthPhone(normalizeUgPhone(authPhone))}
                 placeholder="+256772123456"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Format: +256 7XX XXXXXX (hidden until you approve a claim)
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="gate-pin" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="gate-pin" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {authMode === 'register' ? 'Create a 4–6 Digit PIN' : 'Account PIN'}
               </label>
               <input
@@ -348,13 +348,13 @@ export function ReportItemPage() {
                 value={authPin}
                 onChange={(e) => setAuthPin(e.target.value)}
                 placeholder="••••"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
             </div>
 
             {authError && (
               <div
-                className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-3.5 py-2.5 text-xs font-medium text-rose-800 dark:text-rose-200"
                 role="alert"
               >
                 {authError}
@@ -364,7 +364,7 @@ export function ReportItemPage() {
             <button
               type="submit"
               disabled={authSubmitting || (authMode === 'register' && institutions.length === 0)}
-              className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+              className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50 transition-colors"
             >
               {authSubmitting
                 ? authMode === 'register'
@@ -376,8 +376,8 @@ export function ReportItemPage() {
             </button>
           </form>
 
-          <div className="pt-3 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+            <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
             <span>
               You can edit your WhatsApp number, institution, or log out anytime from your Profile Dashboard.
             </span>
@@ -390,17 +390,17 @@ export function ReportItemPage() {
   // Legacy account guard: prompt to select institution before reporting
   if (!account.institutionId) {
     return (
-      <div className="max-w-md mx-auto bg-white rounded-2xl border border-amber-200 p-6 space-y-4 text-center">
-        <AlertTriangle className="w-10 h-10 text-amber-600 mx-auto" />
-        <h1 className="font-display text-xl font-bold text-slate-900">
+      <div className="max-w-md mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-800/70 p-6 space-y-4 text-center">
+        <AlertTriangle className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" />
+        <h1 className="font-display text-xl font-bold text-slate-900 dark:text-slate-100">
           Select Your Campus Institution
         </h1>
-        <p className="text-sm text-slate-600 leading-relaxed">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
           Your account does not have a campus institution selected yet. Choose your institution in your Profile Dashboard before posting a notice.
         </p>
         <Link
           to="/account"
-          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500"
         >
           Open Profile Dashboard
         </Link>
@@ -412,33 +412,33 @@ export function ReportItemPage() {
   if (createdResult) {
     const managementUrl = `${window.location.origin}/my-notices?token=${createdResult.managementToken}`;
     return (
-      <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 p-5 sm:p-8 space-y-6">
+      <div className="max-w-xl mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-8 space-y-6">
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-emerald-700">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
             Notice Published · {createdResult.institutionName}
           </p>
-          <h1 className="font-display text-2xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
             Your notice is live on CampusTrace
           </h1>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Your WhatsApp number and expected answers remain hidden. Only users under{' '}
-            <strong>{createdResult.institutionName}</strong> can view and respond to this notice.
+            <strong className="text-slate-900 dark:text-slate-100">{createdResult.institutionName}</strong> can view and respond to this notice.
           </p>
         </div>
 
-        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 flex items-start gap-2.5 text-xs sm:text-sm text-emerald-900">
-          <BellRing className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 p-4 flex items-start gap-2.5 text-xs sm:text-sm text-emerald-900 dark:text-emerald-200">
+          <BellRing className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
           <span>
             Saved to your profile (<strong>{account.name}</strong>). You will receive live notifications whenever someone responds to this notice.
           </span>
         </div>
 
-        <div className="rounded-xl bg-slate-50 border border-slate-200 p-4 space-y-3">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-slate-700">Private Management Link</span>
-            <span className="text-xs text-slate-500">Synced to your account</span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Private Management Link</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400">Synced to your account</span>
           </div>
-          <p className="font-mono text-xs text-slate-800 break-all bg-white border border-slate-200 rounded-lg p-3">
+          <p className="font-mono text-xs text-slate-800 dark:text-slate-200 break-all bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
             {managementUrl}
           </p>
           <button
@@ -448,9 +448,9 @@ export function ReportItemPage() {
               setCopiedLink(true);
               setTimeout(() => setCopiedLink(false), 2000);
             }}
-            className="w-full min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center justify-center gap-2 transition-colors"
+            className="w-full min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center justify-center gap-2 transition-colors"
           >
-            {copiedLink ? <Check className="w-4 h-4 text-emerald-700" /> : <Copy className="w-4 h-4" />}
+            {copiedLink ? <Check className="w-4 h-4 text-emerald-700 dark:text-emerald-400" /> : <Copy className="w-4 h-4" />}
             <span>{copiedLink ? 'Management Link Copied' : 'Copy Private Management Link'}</span>
           </button>
         </div>
@@ -458,7 +458,7 @@ export function ReportItemPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <Link
             to={`/my-notices?token=${createdResult.managementToken}`}
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center justify-center transition-colors text-center"
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 inline-flex items-center justify-center transition-colors text-center"
           >
             Open Reporter Dashboard
           </Link>
@@ -474,7 +474,7 @@ export function ReportItemPage() {
               setQuestions([{ question: '', expectedAnswer: '' }]);
               setPledgeAccepted(false);
             }}
-            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center justify-center transition-colors text-center"
+            className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center justify-center transition-colors text-center"
           >
             Report Another Item
           </button>
@@ -487,21 +487,21 @@ export function ReportItemPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="space-y-1.5">
-        <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           Report an Item
         </h1>
-        <p className="text-sm text-slate-600">
-          Your notice will be published strictly to <strong>{account.institutionName}</strong>.
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          Your notice will be published strictly to <strong className="text-slate-900 dark:text-slate-100">{account.institutionName}</strong>.
         </p>
       </div>
 
-      <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-900">
+      <div className="rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800/70 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm text-emerald-900 dark:text-emerald-200">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-          <UserCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+          <UserCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
           <span className="truncate">
             Reporting as <strong>{account.name}</strong> ({formatUgPhoneDisplay(account.phoneNumber)})
           </span>
-          <span className="text-emerald-400">·</span>
+          <span className="text-emerald-400 dark:text-emerald-700">·</span>
           <span className="inline-flex items-center gap-1 font-semibold">
             <Building2 className="w-3.5 h-3.5" />
             <span>{account.institutionName}</span>
@@ -509,24 +509,24 @@ export function ReportItemPage() {
         </div>
         <Link
           to="/account"
-          className="text-xs font-semibold text-emerald-800 underline underline-offset-2 hover:text-emerald-950 shrink-0"
+          className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 underline underline-offset-2 hover:text-emerald-950 dark:hover:text-emerald-100 shrink-0"
         >
           Manage Profile / Log Out
         </Link>
       </div>
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-7 space-y-6">
+      <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-7 space-y-6">
         {/* Type Segmented Toggle */}
         <div className="space-y-2">
-          <span className="block text-xs font-semibold text-slate-700">Notice Type</span>
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+          <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300">Notice Type</span>
+          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <button
               type="button"
               onClick={() => setType('found')}
               className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 type === 'found'
-                  ? 'bg-white text-emerald-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-emerald-800 dark:text-emerald-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               I found an item
@@ -536,8 +536,8 @@ export function ReportItemPage() {
               onClick={() => setType('lost')}
               className={`min-h-[44px] px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
                 type === 'lost'
-                  ? 'bg-white text-amber-800 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-amber-800 dark:text-amber-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               I lost an item
@@ -548,14 +548,14 @@ export function ReportItemPage() {
         {/* Item Basics */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <label htmlFor="item-category" className="block text-xs font-semibold text-slate-700">
+            <label htmlFor="item-category" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Category
             </label>
             <select
               id="item-category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             >
               {CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>
@@ -566,7 +566,7 @@ export function ReportItemPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label htmlFor="item-date" className="block text-xs font-semibold text-slate-700">
+            <label htmlFor="item-date" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
               Date {type === 'found' ? 'Found' : 'Lost'}
             </label>
             <input
@@ -576,13 +576,13 @@ export function ReportItemPage() {
               max={new Date().toISOString().slice(0, 10)}
               value={itemDate}
               onChange={(e) => setItemDate(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="item-title" className="block text-xs font-semibold text-slate-700">
+          <label htmlFor="item-title" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
             Item Title
           </label>
           <input
@@ -594,12 +594,12 @@ export function ReportItemPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g. Navy Blue HP Laptop Sleeve with Charger"
-            className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
           />
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="item-location" className="block text-xs font-semibold text-slate-700">
+          <label htmlFor="item-location" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
             Campus Location ({account.institutionName})
           </label>
           {institutionLocations.length > 0 ? (
@@ -608,7 +608,7 @@ export function ReportItemPage() {
               required
               value={location}
               onChange={(e) => setLocation(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             >
               <option value="">Select a campus location...</option>
               {institutionLocations.map((loc) => (
@@ -628,9 +628,9 @@ export function ReportItemPage() {
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 placeholder="e.g. Main Library Level 2"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 No preset campus locations configured yet by Admin for {account.institutionName}.
               </p>
             </>
@@ -638,7 +638,7 @@ export function ReportItemPage() {
         </div>
 
         <div className="space-y-1.5">
-          <label htmlFor="item-description" className="block text-xs font-semibold text-slate-700">
+          <label htmlFor="item-description" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
             Public Description
           </label>
           <textarea
@@ -650,22 +650,22 @@ export function ReportItemPage() {
             value={publicDescription}
             onChange={(e) => setPublicDescription(e.target.value)}
             placeholder="Describe general appearance and where it was seen. Keep unique identifying secrets (lockscreen photo, serial number, stickers inside) for the private questions below."
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
           />
         </div>
 
         {/* Photo Upload */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-700">
+            <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Item Photos (minimum 1, up to 5)
             </span>
-            <span className="text-xs text-slate-500 tabular-nums">{photoFiles.length}/5</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">{photoFiles.length}/5</span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {photoPreviews.map((url, idx) => (
-              <div key={url} className="relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+              <div key={url} className="relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
                 <img src={url} alt={`Item preview ${idx + 1}`} className="w-full h-full object-cover" />
                 <button
                   type="button"
@@ -679,7 +679,7 @@ export function ReportItemPage() {
             ))}
 
             {photoFiles.length < 5 && (
-              <label className="aspect-4/3 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-700 bg-slate-50 flex flex-col items-center justify-center gap-1.5 text-slate-600 hover:text-emerald-700 cursor-pointer transition-colors p-3 text-center">
+              <label className="aspect-4/3 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-emerald-700 dark:hover:border-emerald-500 bg-slate-50 dark:bg-slate-800/60 flex flex-col items-center justify-center gap-1.5 text-slate-600 dark:text-slate-300 hover:text-emerald-700 dark:hover:text-emerald-400 cursor-pointer transition-colors p-3 text-center">
                 <ImagePlus className="w-6 h-6" />
                 <span className="text-xs font-medium">Add Photo</span>
                 <input
@@ -695,14 +695,14 @@ export function ReportItemPage() {
         </div>
 
         {/* Private Verification Questions */}
-        <div className="pt-4 border-t border-slate-200 space-y-4">
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                <Lock className="w-4 h-4 text-emerald-700" />
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <Lock className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
                 <span>Private Verification Questions</span>
               </h2>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Claimants see your questions, never your expected answers. Only you and Admin can view expected answers.
               </p>
             </div>
@@ -710,7 +710,7 @@ export function ReportItemPage() {
               <button
                 type="button"
                 onClick={addQuestion}
-                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 inline-flex items-center gap-1 shrink-0"
+                className="min-h-[40px] px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 shrink-0"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add Question</span>
@@ -720,14 +720,14 @@ export function ReportItemPage() {
 
           <div className="space-y-3">
             {questions.map((item, idx) => (
-              <div key={idx} className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-3">
+              <div key={idx} className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3.5 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-600">Question {idx + 1}</span>
+                  <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Question {idx + 1}</span>
                   {questions.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeQuestion(idx)}
-                      className="text-xs font-medium text-rose-700 hover:text-rose-800 min-h-[32px] px-2"
+                      className="text-xs font-medium text-rose-700 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 min-h-[32px] px-2"
                     >
                       Remove
                     </button>
@@ -741,7 +741,7 @@ export function ReportItemPage() {
                   value={item.question}
                   onChange={(e) => updateQuestion(idx, 'question', e.target.value)}
                   placeholder="e.g. What sticker or name is inside the front zipper?"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 />
                 <input
                   type="text"
@@ -751,7 +751,7 @@ export function ReportItemPage() {
                   value={item.expectedAnswer}
                   onChange={(e) => updateQuestion(idx, 'expectedAnswer', e.target.value)}
                   placeholder="Expected answer (kept strictly private)"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 />
               </div>
             ))}
@@ -759,16 +759,16 @@ export function ReportItemPage() {
         </div>
 
         {/* Reporter Identity (Pre-filled from Profile) */}
-        <div className="pt-4 border-t border-slate-200 space-y-4">
+        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold text-slate-900">Your Contact Details (Private)</h2>
-            <Link to="/account" className="text-xs font-medium text-emerald-700 hover:underline">
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your Contact Details (Private)</h2>
+            <Link to="/account" className="text-xs font-medium text-emerald-700 dark:text-emerald-400 hover:underline">
               Edit in Profile Dashboard
             </Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <label htmlFor="reporter-name" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="reporter-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Your Name
               </label>
               <input
@@ -779,12 +779,12 @@ export function ReportItemPage() {
                 value={reporterName}
                 onChange={(e) => setReporterName(e.target.value)}
                 placeholder="e.g. Grace Namukasa"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="reporter-whatsapp" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="reporter-whatsapp" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Ugandan WhatsApp Number
               </label>
               <input
@@ -795,20 +795,20 @@ export function ReportItemPage() {
                 onChange={(e) => setReporterWhatsApp(e.target.value)}
                 onBlur={() => setReporterWhatsApp(normalizeUgPhone(reporterWhatsApp))}
                 placeholder="+256772123456"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
-              <p className="text-xs text-slate-500">Format: +256 7XX XXXXXX (hidden until claim approval)</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Format: +256 7XX XXXXXX (hidden until claim approval)</p>
             </div>
           </div>
 
-          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+          <label className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer">
             <input
               type="checkbox"
               checked={pledgeAccepted}
               onChange={(e) => setPledgeAccepted(e.target.checked)}
-              className="mt-0.5 w-5 h-5 rounded border-slate-300 text-emerald-700 focus:ring-emerald-700 shrink-0"
+              className="mt-0.5 w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-emerald-700 dark:text-emerald-500 focus:ring-emerald-700 dark:focus:ring-emerald-500 shrink-0"
             />
-            <span className="text-xs sm:text-sm text-slate-700 leading-relaxed">
+            <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
               {type === 'found'
                 ? 'I have this item and will hand it over fairly at a public campus location once ownership is verified.'
                 : 'I confirm that these details accurately describe my lost item and I will coordinate handover safely.'}
@@ -817,7 +817,7 @@ export function ReportItemPage() {
         </div>
 
         {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" role="alert">
+          <div className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-4 py-3 text-sm text-rose-800 dark:text-rose-200" role="alert">
             {error}
           </div>
         )}
@@ -825,7 +825,7 @@ export function ReportItemPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+          className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50 transition-colors"
         >
           {submitting ? 'Publishing Notice...' : 'Publish Item Notice'}
         </button>

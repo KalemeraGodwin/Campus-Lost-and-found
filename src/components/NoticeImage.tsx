@@ -13,12 +13,12 @@ export function NoticeImage({ src, alt, className = 'w-full h-full object-cover'
   if (!src || failed) {
     return (
       <div
-        className="w-full h-full bg-slate-100 flex flex-col items-center justify-center p-4 text-center text-slate-500"
+        className="w-full h-full bg-slate-100 dark:bg-slate-800 flex flex-col items-center justify-center p-4 text-center text-slate-500 dark:text-slate-400"
         role="img"
         aria-label={alt}
       >
-        <PackageSearch className="w-8 h-8 text-slate-400 mb-2" strokeWidth={1.6} />
-        <span className="text-xs font-medium text-slate-600 line-clamp-2 max-w-[18ch]">{alt}</span>
+        <PackageSearch className="w-8 h-8 text-slate-400 dark:text-slate-500 mb-2" strokeWidth={1.6} />
+        <span className="text-xs font-medium text-slate-600 dark:text-slate-300 line-clamp-2 max-w-[18ch]">{alt}</span>
       </div>
     );
   }

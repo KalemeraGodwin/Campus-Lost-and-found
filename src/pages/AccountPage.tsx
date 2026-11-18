@@ -9,16 +9,20 @@ import {
   Edit3,
   FolderKanban,
   LogOut,
+  Moon,
   PlusCircle,
   ShieldCheck,
+  Sun,
   TicketCheck,
   UserCheck,
 } from 'lucide-react';
 import { useAccount } from '../context/AccountContext';
-import { extractFriendlyError } from '../services/firebase';
+import { useTheme } from '../context/ThemeContext';
+import { extractFriendlyError } from '../services/api';
 import { formatShortDate, formatUgPhoneDisplay, normalizeUgPhone } from '../utils/cryptoAndValidation';
 
 export function AccountPage() {
+  const { theme, setTheme } = useTheme();
   const {
     account,
     institutions,
@@ -123,20 +127,65 @@ export function AccountPage() {
     }
   }
 
+  const appearanceControl = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="space-y-0.5">
+        <span className="block text-xs font-semibold text-slate-900 dark:text-slate-100">
+          Appearance Theme
+        </span>
+        <span className="block text-xs text-slate-500 dark:text-slate-400">
+          Switch between Light and Dark mode across all CampusTrace pages.
+        </span>
+      </div>
+      <div
+        className="inline-flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0"
+        role="group"
+        aria-label="Appearance theme"
+      >
+        <button
+          type="button"
+          onClick={() => setTheme('light')}
+          aria-pressed={theme === 'light'}
+          className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+            theme === 'light'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Sun className="w-3.5 h-3.5 text-amber-500" />
+          <span>Light</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setTheme('dark')}
+          aria-pressed={theme === 'dark'}
+          className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap transition-colors ${
+            theme === 'dark'
+              ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+          }`}
+        >
+          <Moon className="w-3.5 h-3.5 text-emerald-500" />
+          <span>Dark</span>
+        </button>
+      </div>
+    </div>
+  );
+
   if (!account) {
     return (
       <div className="max-w-md mx-auto space-y-6">
         <div className="space-y-1.5">
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             Account &amp; Profile Dashboard
           </h1>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             Create an account under your campus institution or sign in to report items anytime, manage your WhatsApp number, and receive institution-specific notifications.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5">
+          <div className="grid grid-cols-2 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <button
               type="button"
               onClick={() => {
@@ -145,8 +194,8 @@ export function AccountPage() {
               }}
               className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 mode === 'register'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               Create Account
@@ -159,8 +208,8 @@ export function AccountPage() {
               }}
               className={`min-h-[40px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 mode === 'login'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
               }`}
             >
               Sign In
@@ -171,7 +220,7 @@ export function AccountPage() {
             {mode === 'register' && (
               <>
                 <div className="space-y-1.5">
-                  <label htmlFor="acc-name" className="block text-xs font-semibold text-slate-700">
+                  <label htmlFor="acc-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Full Name
                   </label>
                   <input
@@ -183,12 +232,12 @@ export function AccountPage() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Grace Namukasa"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label htmlFor="acc-institution" className="block text-xs font-semibold text-slate-700">
+                  <label htmlFor="acc-institution" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                     Campus Institution
                   </label>
                   <select
@@ -197,7 +246,7 @@ export function AccountPage() {
                     value={institutionId}
                     onChange={(e) => setInstitutionId(e.target.value)}
                     disabled={institutionsLoading || institutions.length === 0}
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                   >
                     {institutions.length === 0 ? (
                       <option value="">
@@ -211,7 +260,7 @@ export function AccountPage() {
                       ))
                     )}
                   </select>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     You will only receive notices and alerts attached to your selected institution.
                   </p>
                 </div>
@@ -219,7 +268,7 @@ export function AccountPage() {
             )}
 
             <div className="space-y-1.5">
-              <label htmlFor="acc-phone" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="acc-phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Ugandan WhatsApp Number
               </label>
               <input
@@ -230,13 +279,13 @@ export function AccountPage() {
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 onBlur={() => setPhoneNumber(normalizeUgPhone(phoneNumber))}
                 placeholder="+256772123456"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
-              <p className="text-xs text-slate-500">Format: +256 7XX XXXXXX</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Format: +256 7XX XXXXXX</p>
             </div>
 
             <div className="space-y-1.5">
-              <label htmlFor="acc-pin" className="block text-xs font-semibold text-slate-700">
+              <label htmlFor="acc-pin" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {mode === 'register' ? 'Create a 4–6 Digit PIN' : 'Account PIN'}
               </label>
               <input
@@ -249,16 +298,16 @@ export function AccountPage() {
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
                 placeholder="••••"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
               />
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Protects your management tokens, claim codes, and profile settings.
               </p>
             </div>
 
             {error && (
               <div
-                className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-3.5 py-2.5 text-xs font-medium text-rose-800 dark:text-rose-200"
                 role="alert"
               >
                 {error}
@@ -268,7 +317,7 @@ export function AccountPage() {
             <button
               type="submit"
               disabled={submitting || (mode === 'register' && institutions.length === 0)}
-              className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+              className="w-full min-h-[46px] px-4 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50 transition-colors"
             >
               {submitting
                 ? mode === 'register'
@@ -280,12 +329,16 @@ export function AccountPage() {
             </button>
           </form>
 
-          <div className="pt-3 border-t border-slate-100 flex items-start gap-2.5 text-xs text-slate-500">
-            <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-start gap-2.5 text-xs text-slate-500 dark:text-slate-400">
+            <ShieldCheck className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0 mt-0.5" />
             <span>
               Your WhatsApp number remains completely hidden on public listings until you approve a verified claim.
             </span>
           </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5">
+          {appearanceControl}
         </div>
       </div>
     );
@@ -294,14 +347,14 @@ export function AccountPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       {!account.institutionId && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="rounded-2xl border border-amber-200 dark:border-amber-800/70 bg-amber-50 dark:bg-amber-950/40 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+            <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
             <div className="space-y-0.5">
-              <p className="text-xs sm:text-sm font-semibold text-amber-900">
+              <p className="text-xs sm:text-sm font-semibold text-amber-900 dark:text-amber-200">
                 Select your campus institution to continue
               </p>
-              <p className="text-xs text-amber-800">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
                 Notices and alerts are scoped by campus institution. Choose your institution in your profile settings below.
               </p>
             </div>
@@ -310,7 +363,7 @@ export function AccountPage() {
             <button
               type="button"
               onClick={startEditProfile}
-              className="min-h-[38px] px-4 py-2 rounded-xl bg-amber-900 text-white text-xs font-semibold hover:bg-amber-950 shrink-0"
+              className="min-h-[38px] px-4 py-2 rounded-xl bg-amber-900 dark:bg-amber-500 text-white dark:text-slate-950 text-xs font-semibold hover:bg-amber-950 dark:hover:bg-amber-400 shrink-0"
             >
               Choose Institution
             </button>
@@ -319,22 +372,22 @@ export function AccountPage() {
       )}
 
       {/* Signed-in Profile Dashboard Card */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-5">
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700">
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
               <UserCheck className="w-4 h-4 shrink-0" />
               <span>Profile Dashboard</span>
             </div>
-            <h1 className="font-display text-2xl font-bold text-slate-900 break-words">
+            <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-slate-100 break-words">
               {account.name}
             </h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-300">
               <span className="font-mono">{formatUgPhoneDisplay(account.phoneNumber)}</span>
               {account.institutionName && (
                 <>
-                  <span className="text-slate-300">·</span>
-                  <span className="inline-flex items-center gap-1 font-medium text-emerald-800">
+                  <span className="text-slate-300 dark:text-slate-700">·</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-emerald-800 dark:text-emerald-300">
                     <Building2 className="w-3.5 h-3.5 shrink-0" />
                     <span>{account.institutionName}</span>
                   </span>
@@ -348,7 +401,7 @@ export function AccountPage() {
               <button
                 type="button"
                 onClick={startEditProfile}
-                className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 hover:bg-slate-50 inline-flex items-center gap-1.5"
+                className="min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
               >
                 <Edit3 className="w-4 h-4" />
                 <span>Edit Profile</span>
@@ -362,8 +415,8 @@ export function AccountPage() {
                 disabled={browserNotifPermission === 'granted'}
                 className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold inline-flex items-center gap-1.5 border transition-colors ${
                   browserNotifPermission === 'granted'
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
                 <BellRing className="w-4 h-4" />
@@ -378,7 +431,7 @@ export function AccountPage() {
             <button
               type="button"
               onClick={logoutAccount}
-              className="min-h-[40px] px-3.5 py-2 rounded-xl border border-rose-200 text-xs font-semibold text-rose-700 hover:bg-rose-50 inline-flex items-center gap-1.5"
+              className="min-h-[40px] px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-800/70 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/50 inline-flex items-center gap-1.5"
             >
               <LogOut className="w-4 h-4" />
               <span>Log Out</span>
@@ -386,8 +439,12 @@ export function AccountPage() {
           </div>
         </div>
 
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+          {appearanceControl}
+        </div>
+
         {profileSuccess && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs sm:text-sm text-emerald-900">
+          <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50 dark:bg-emerald-950/50 px-4 py-3 text-xs sm:text-sm text-emerald-900 dark:text-emerald-200">
             {profileSuccess}
           </div>
         )}
@@ -395,20 +452,20 @@ export function AccountPage() {
         {editingProfile && (
           <form
             onSubmit={handleSaveProfile}
-            className="pt-4 border-t border-slate-200 space-y-4"
+            className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4"
           >
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 Edit Profile, WhatsApp Number &amp; Institution
               </h2>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-slate-600 dark:text-slate-300">
                 Updating your WhatsApp number here updates your login number for future sign-ins and keeps your posted notices and alerts linked.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
-                <label htmlFor="edit-profile-name" className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="edit-profile-name" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Full Name
                 </label>
                 <input
@@ -419,12 +476,12 @@ export function AccountPage() {
                   maxLength={80}
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="edit-profile-phone" className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="edit-profile-phone" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Ugandan WhatsApp Number
                 </label>
                 <input
@@ -435,13 +492,13 @@ export function AccountPage() {
                   onChange={(e) => setEditPhone(e.target.value)}
                   onBlur={() => setEditPhone(normalizeUgPhone(editPhone))}
                   placeholder="+256772123456"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 font-mono text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 font-mono text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 />
-                <p className="text-xs text-slate-500">Format: +256 7XX XXXXXX</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Format: +256 7XX XXXXXX</p>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="edit-profile-institution" className="block text-xs font-semibold text-slate-700">
+                <label htmlFor="edit-profile-institution" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
                   Campus Institution
                 </label>
                 <select
@@ -449,7 +506,7 @@ export function AccountPage() {
                   required
                   value={editInstitutionId}
                   onChange={(e) => setEditInstitutionId(e.target.value)}
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
                 >
                   {institutions.map((inst) => (
                     <option key={inst.id} value={inst.id}>
@@ -462,7 +519,7 @@ export function AccountPage() {
 
             {profileError && (
               <div
-                className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs font-medium text-rose-800"
+                className="rounded-xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 px-3.5 py-2.5 text-xs font-medium text-rose-800 dark:text-rose-200"
                 role="alert"
               >
                 {profileError}
@@ -476,14 +533,14 @@ export function AccountPage() {
                   setEditingProfile(false);
                   setProfileError(null);
                 }}
-                className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={savingProfile}
-                className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-50"
+                className="min-h-[42px] px-5 py-2 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 disabled:opacity-50"
               >
                 {savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}
               </button>
@@ -496,7 +553,7 @@ export function AccountPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Link
           to="/report"
-          className="bg-emerald-700 text-white rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-emerald-800 transition-colors"
+          className="bg-emerald-700 dark:bg-emerald-600 text-white rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-3 hover:bg-emerald-800 dark:hover:bg-emerald-500 transition-colors"
         >
           <div className="space-y-1 min-w-0">
             <p className="text-sm font-semibold">Report an Item</p>
@@ -509,37 +566,37 @@ export function AccountPage() {
 
         <Link
           to="/my-notices"
-          className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex items-center justify-between gap-3 hover:border-emerald-700 transition-colors"
+          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex items-center justify-between gap-3 hover:border-emerald-700 dark:hover:border-emerald-500 transition-colors"
         >
           <div className="space-y-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900">My Posted Notices</p>
-            <p className="text-xs text-slate-600">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">My Posted Notices</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
               Review claims &amp; approve handovers
             </p>
           </div>
-          <FolderKanban className="w-6 h-6 text-emerald-700 shrink-0" />
+          <FolderKanban className="w-6 h-6 text-emerald-700 dark:text-emerald-400 shrink-0" />
         </Link>
 
         <Link
           to="/track-claim"
-          className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 flex items-center justify-between gap-3 hover:border-emerald-700 transition-colors"
+          className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 flex items-center justify-between gap-3 hover:border-emerald-700 dark:hover:border-emerald-500 transition-colors"
         >
           <div className="space-y-1 min-w-0">
-            <p className="text-sm font-semibold text-slate-900">My Submitted Claims</p>
-            <p className="text-xs text-slate-600">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">My Submitted Claims</p>
+            <p className="text-xs text-slate-600 dark:text-slate-300">
               Check approval &amp; WhatsApp links
             </p>
           </div>
-          <TicketCheck className="w-6 h-6 text-emerald-700 shrink-0" />
+          <TicketCheck className="w-6 h-6 text-emerald-700 dark:text-emerald-400 shrink-0" />
         </Link>
       </div>
 
       {/* Real-Time Notifications Inbox */}
-      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+      <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <Bell className="w-4 h-4 text-emerald-700" />
-            <h2 className="font-display text-lg font-bold text-slate-900">
+            <Bell className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+            <h2 className="font-display text-lg font-bold text-slate-900 dark:text-slate-100">
               Notifications ({unreadCount} unread)
             </h2>
           </div>
@@ -548,7 +605,7 @@ export function AccountPage() {
             <button
               type="button"
               onClick={markAllAsRead}
-              className="min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 hover:bg-emerald-50 inline-flex items-center gap-1.5"
+              className="min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 inline-flex items-center gap-1.5"
             >
               <CheckCheck className="w-4 h-4" />
               <span>Mark all read</span>
@@ -558,13 +615,13 @@ export function AccountPage() {
 
         {notifications.length === 0 ? (
           <div className="p-8 text-center space-y-2">
-            <p className="text-sm font-semibold text-slate-900">No notifications yet</p>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No notifications yet</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
               Whenever someone submits a claim on your found/lost item or a reporter reviews your claim, you will receive an instant notification here.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {notifications.map((notif) => {
               const targetRoute =
                 notif.kind === 'new_claim' || notif.kind === 'claim_resubmitted'
@@ -574,25 +631,25 @@ export function AccountPage() {
                 <div
                   key={notif.id}
                   className={`p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                    notif.read ? 'bg-white' : 'bg-emerald-50/40'
+                    notif.read ? 'bg-white dark:bg-slate-900' : 'bg-emerald-50/40 dark:bg-emerald-950/35'
                   }`}
                 >
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2 text-xs">
                       <span
                         className={`font-semibold ${
-                          notif.read ? 'text-slate-500' : 'text-emerald-700'
+                          notif.read ? 'text-slate-500 dark:text-slate-400' : 'text-emerald-700 dark:text-emerald-400'
                         }`}
                       >
                         {notif.read ? 'Read' : 'New Notification'}
                       </span>
-                      <span className="text-slate-300">·</span>
-                      <span className="text-slate-500 tabular-nums">
+                      <span className="text-slate-300 dark:text-slate-700">·</span>
+                      <span className="text-slate-500 dark:text-slate-400 tabular-nums">
                         {formatShortDate(notif.createdAt)}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-slate-900 break-words">{notif.title}</p>
-                    <p className="text-xs sm:text-sm text-slate-600 break-words">{notif.message}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 break-words">{notif.title}</p>
+                    <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 break-words">{notif.message}</p>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -600,7 +657,7 @@ export function AccountPage() {
                       <button
                         type="button"
                         onClick={() => markAsRead(notif.id)}
-                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
                       >
                         Mark read
                       </button>
@@ -610,7 +667,7 @@ export function AccountPage() {
                       onClick={() => {
                         if (!notif.read) markAsRead(notif.id);
                       }}
-                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 inline-flex items-center"
+                      className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-white inline-flex items-center"
                     >
                       {notif.kind === 'new_claim' || notif.kind === 'claim_resubmitted'
                         ? 'Review Claim'

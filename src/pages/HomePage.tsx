@@ -15,7 +15,7 @@ import {
   extractFriendlyError,
   seedCampusNoticesIfEmpty,
   subscribePublicNotices,
-} from '../services/firebase';
+} from '../services/api';
 import { CATEGORIES, NoticeType, PublicNotice } from '../types';
 import { formatShortDate, getEffectiveNoticeStatus, isOlderThanDays } from '../utils/cryptoAndValidation';
 
@@ -123,17 +123,17 @@ export function HomePage() {
   // Legacy account guard: prompt user to pick their institution on Account page
   if (account && !account.institutionId) {
     return (
-      <div className="max-w-lg mx-auto bg-white rounded-2xl border border-amber-200 p-6 sm:p-8 text-center space-y-4">
-        <Building2 className="w-10 h-10 text-amber-600 mx-auto" />
-        <h1 className="font-display text-2xl font-bold text-slate-900">
+      <div className="max-w-lg mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-800/70 p-6 sm:p-8 text-center space-y-4">
+        <Building2 className="w-10 h-10 text-amber-600 dark:text-amber-400 mx-auto" />
+        <h1 className="font-display text-2xl font-bold text-slate-900 dark:text-slate-100">
           Select Your Campus Institution
         </h1>
-        <p className="text-sm text-slate-600 leading-relaxed">
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
           Notices are strictly scoped to your campus institution. Choose your institution in your Profile Dashboard to view items and alerts for your campus.
         </p>
         <Link
           to="/account"
-          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+          className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500"
         >
           Open Profile Dashboard
         </Link>
@@ -146,26 +146,26 @@ export function HomePage() {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="space-y-2 text-center">
-          <p className="text-xs font-semibold text-emerald-700 inline-flex items-center gap-1.5 justify-center">
+          <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1.5 justify-center">
             <ShieldCheck className="w-4 h-4 shrink-0" />
             <span>Institution-Scoped Lost &amp; Found</span>
           </p>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             Select Your Campus Institution
           </h1>
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed max-w-lg mx-auto">
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-lg mx-auto">
             Choose your campus to view active lost and found notices for that institution, or sign in with your account.
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 space-y-4">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 sm:p-6 space-y-4">
           {institutionsLoading ? (
             <div className="space-y-3 animate-pulse">
-              <div className="h-14 bg-slate-100 rounded-xl" />
-              <div className="h-14 bg-slate-100 rounded-xl" />
+              <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+              <div className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
             </div>
           ) : institutions.length === 0 ? (
-            <p className="text-sm text-slate-600 text-center py-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300 text-center py-4">
               No campus institutions have been configured by the Admin yet.
             </p>
           ) : (
@@ -175,13 +175,13 @@ export function HomePage() {
                   key={inst.id}
                   type="button"
                   onClick={() => setGuestInstitutionId(inst.id)}
-                  className="text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-700 hover:bg-emerald-50/40 transition-colors space-y-1"
+                  className="text-left p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-emerald-700 dark:hover:border-emerald-500 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/40 transition-colors space-y-1"
                 >
-                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <Building2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    <Building2 className="w-4 h-4 text-emerald-700 dark:text-emerald-400 shrink-0" />
                     <span>{inst.name}</span>
                   </div>
-                  <p className="text-xs text-slate-500 tabular-nums">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
                     {inst.locations.length} campus location{inst.locations.length === 1 ? '' : 's'}
                   </p>
                 </button>
@@ -189,11 +189,11 @@ export function HomePage() {
             </div>
           )}
 
-          <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-300">
             <span>Already have a CampusTrace account?</span>
             <Link
               to="/account"
-              className="min-h-[38px] px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 inline-flex items-center"
+              className="min-h-[38px] px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-white inline-flex items-center"
             >
               Sign In / Create Account
             </Link>
@@ -206,37 +206,38 @@ export function HomePage() {
   return (
     <div className="space-y-6">
       {/* Focused Editorial Hero */}
-      <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-slate-200">
+      <section className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-5 border-b border-slate-200 dark:border-slate-800">
         <div className="space-y-2 max-w-2xl">
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-emerald-700">
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
             <span className="inline-flex items-center gap-1.5">
               <Building2 className="w-4 h-4 shrink-0" />
               <span>{activeInstitution?.name || 'Campus Institution'}</span>
             </span>
             {!account && (
               <>
-                <span className="text-slate-300">·</span>
+                <span className="text-slate-300 dark:text-slate-700">·</span>
                 <button
                   type="button"
                   onClick={() => setGuestInstitutionId(null)}
-                  className="text-slate-600 hover:text-slate-900 underline underline-offset-2 font-medium"
+                  className="text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 underline underline-offset-2 font-medium"
                 >
                   Switch Campus
                 </button>
               </>
             )}
           </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Campus Lost &amp; Found Board
           </h1>
-          <p className="text-sm sm:text-base text-slate-600 leading-relaxed">
-            Showing active items reported at <strong>{activeInstitution?.name}</strong>. Ownership is verified privately before any WhatsApp number is shared.
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">
+            Showing active items reported at{' '}
+            <strong className="text-slate-900 dark:text-slate-100">{activeInstitution?.name}</strong>. Ownership is verified privately before any WhatsApp number is shared.
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="shrink-0">
           <Link
             to="/report"
-            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap"
+            className="w-full md:w-auto min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap"
           >
             <PlusCircle className="w-4 h-4 shrink-0" />
             <span>Report Found or Lost</span>
@@ -245,23 +246,23 @@ export function HomePage() {
       </section>
 
       {/* Search & Filter Toolbar */}
-      <section aria-label="Search and filters" className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
+      <section aria-label="Search and filters" className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-3">
         <div className="flex flex-col md:flex-row gap-3">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search items by title, details, or campus building..."
               aria-label="Search lost and found items"
-              className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl border border-slate-300 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
 
           {/* Interactive Type Segmented Control */}
           <div
-            className="grid grid-cols-3 p-1 bg-slate-100 rounded-xl shrink-0 w-full md:w-64"
+            className="grid grid-cols-3 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl shrink-0 w-full md:w-64"
             role="group"
             aria-label="Filter by notice type"
           >
@@ -272,8 +273,8 @@ export function HomePage() {
                 onClick={() => setTypeFilter(t)}
                 className={`min-h-[36px] px-2 sm:px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-colors whitespace-nowrap ${
                   typeFilter === t
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`}
               >
                 {t === 'all' ? 'All Items' : t}
@@ -291,7 +292,7 @@ export function HomePage() {
               id="filter-category"
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             >
               <option value="all">All Categories</option>
               {CATEGORIES.map((cat) => (
@@ -310,7 +311,7 @@ export function HomePage() {
               id="filter-location"
               value={locationFilter}
               onChange={(e) => setLocationFilter(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             >
               <option value="all">All Campus Locations</option>
               {availableLocations.map((loc) => (
@@ -334,7 +335,7 @@ export function HomePage() {
                 setExactDate('');
                 setDateFilter(val);
               }}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             >
               <option value="all">Any Date</option>
               <option value="7d">Last 7 Days</option>
@@ -349,12 +350,12 @@ export function HomePage() {
               aria-label="Filter by exact date"
               value={exactDate}
               onChange={(e) => setExactDate(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-700"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-700 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-700 dark:focus:ring-emerald-500"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
           <span className="tabular-nums">
             Showing {filteredNotices.length} active {filteredNotices.length === 1 ? 'notice' : 'notices'}
           </span>
@@ -362,7 +363,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:text-emerald-800 min-h-[32px]"
+              className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 min-h-[32px]"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>Reset filters</span>
@@ -373,7 +374,10 @@ export function HomePage() {
 
       {/* Error State */}
       {error && (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
+        <div
+          className="rounded-2xl border border-rose-200 dark:border-rose-800/70 bg-rose-50 dark:bg-rose-950/45 p-4 text-sm text-rose-800 dark:text-rose-200"
+          role="alert"
+        >
           {error}
         </div>
       )}
@@ -384,23 +388,23 @@ export function HomePage() {
           {[1, 2, 3].map((idx) => (
             <div
               key={idx}
-              className="bg-white rounded-2xl border border-slate-200 overflow-hidden animate-pulse"
+              className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-pulse"
             >
-              <div className="aspect-4/3 bg-slate-200" />
+              <div className="aspect-4/3 bg-slate-200 dark:bg-slate-800" />
               <div className="p-4 space-y-3">
-                <div className="h-3 w-28 bg-slate-200 rounded" />
-                <div className="h-5 w-4/5 bg-slate-200 rounded" />
-                <div className="h-4 w-full bg-slate-100 rounded" />
+                <div className="h-3 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-5 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
+                <div className="h-4 w-full bg-slate-100 dark:bg-slate-800/70 rounded" />
               </div>
             </div>
           ))}
         </div>
       ) : filteredNotices.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center space-y-3">
-          <p className="font-display text-lg font-semibold text-slate-900">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 sm:p-12 text-center space-y-3">
+          <p className="font-display text-lg font-semibold text-slate-900 dark:text-slate-100">
             No matching open notices
           </p>
-          <p className="text-sm text-slate-600 max-w-md mx-auto">
+          <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
             Try clearing your filters or post a new lost or found item notice so others on campus can help.
           </p>
           <div className="pt-2 flex flex-wrap justify-center gap-3">
@@ -408,14 +412,14 @@ export function HomePage() {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
                 Clear Filters
               </button>
             )}
             <Link
               to="/report"
-              className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800 inline-flex items-center"
+              className="min-h-[44px] px-4 py-2 rounded-xl bg-emerald-700 dark:bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-800 dark:hover:bg-emerald-500 inline-flex items-center"
             >
               Post a Notice
             </Link>
@@ -427,9 +431,9 @@ export function HomePage() {
             <Link
               key={notice.id}
               to={`/item/${notice.id}`}
-              className="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col hover:border-slate-300 hover:shadow-sm transition-all"
+              className="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
             >
-              <div className="aspect-4/3 bg-slate-100 overflow-hidden">
+              <div className="aspect-4/3 bg-slate-100 dark:bg-slate-800 overflow-hidden">
                 <NoticeImage
                   src={notice.photos[0]}
                   alt={notice.title}
@@ -441,31 +445,33 @@ export function HomePage() {
                   <div className="flex items-center gap-2 text-xs font-medium">
                     <span
                       className={
-                        notice.type === 'found' ? 'text-emerald-700 font-semibold' : 'text-amber-700 font-semibold'
+                        notice.type === 'found'
+                          ? 'text-emerald-700 dark:text-emerald-400 font-semibold'
+                          : 'text-amber-700 dark:text-amber-400 font-semibold'
                       }
                     >
                       {notice.type === 'found' ? 'Found Item' : 'Lost Item'}
                     </span>
-                    <span className="text-slate-300" aria-hidden="true">
+                    <span className="text-slate-300 dark:text-slate-700" aria-hidden="true">
                       ·
                     </span>
-                    <span className="text-slate-600">{notice.category}</span>
+                    <span className="text-slate-600 dark:text-slate-400">{notice.category}</span>
                   </div>
-                  <h2 className="font-display text-base font-semibold text-slate-900 leading-snug line-clamp-2 group-hover:text-emerald-800 transition-colors">
+                  <h2 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 group-hover:text-emerald-800 dark:group-hover:text-emerald-400 transition-colors">
                     {notice.title}
                   </h2>
-                  <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                  <p className="text-sm text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
                     {notice.publicDescription}
                   </p>
                 </div>
 
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 text-xs text-slate-500">
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
                   <span className="inline-flex items-center gap-1 truncate">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                    <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
                     <span className="truncate">{notice.location}</span>
                   </span>
                   <span className="inline-flex items-center gap-1 shrink-0 tabular-nums">
-                    <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                    <Calendar className="w-3.5 h-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
                     <span>{formatShortDate(notice.itemDate)}</span>
                   </span>
                 </div>

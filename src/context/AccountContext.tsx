@@ -22,7 +22,7 @@ import {
   subscribeAccountNotifications,
   subscribeInstitutions,
   updateStudentAccountProfile,
-} from '../services/firebase';
+} from '../services/api';
 import {
   AppNotification,
   CampusInstitution,
